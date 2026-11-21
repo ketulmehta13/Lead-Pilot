@@ -1,4 +1,4 @@
-# Runtime dependencies (Phase 0). ML / GenAI / payment packages are added in their phases.
+# Runtime dependencies. GenAI / payment packages are added in their phases.
 Django>=5.1,<5.3
 djangorestframework>=3.15,<4
 djangorestframework-simplejwt>=5.3,<6
@@ -11,3 +11,12 @@ celery[redis]>=5.4,<6
 redis>=5.0
 gunicorn>=23.0
 Faker>=30.0
+# ML (Phase 3)
+pandas>=2.2
+numpy>=1.26
+scikit-learn>=1.5
+xgboost>=2.1
+imbalanced-learn>=0.12
+shap>=0.46
+joblib>=1.4
+openpyxl>=3.1

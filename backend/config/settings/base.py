@@ -154,6 +154,11 @@ CELERY_BEAT_SCHEDULE = {
         "task": "crm.send_overdue_task_reminders",
         "schedule": crontab(hour=8, minute=0),  # every day 08:00 (TIME_ZONE)
     },
+    "nightly-lead-rescore": {"task": "ml.rescore_all", "schedule": crontab(hour=2, minute=0)},
+    "nightly-segments-churn": {
+        "task": "ml.refresh_customer_insights",
+        "schedule": crontab(hour=2, minute=15),
+    },
 }
 
 # --- Email (console in dev: reminders are printed to the worker log) ---

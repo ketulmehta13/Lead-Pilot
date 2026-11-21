@@ -14,15 +14,15 @@ import { api } from './client';
 
 export type ListParams = Record<string, string | number | boolean | undefined | null>;
 
-function clean(params: ListParams = {}) {
+export function clean(params: ListParams = {}) {
   return Object.fromEntries(
     Object.entries(params).filter(([, v]) => v !== '' && v !== undefined && v !== null),
   );
 }
 
 /** Typed CRUD helpers for one DRF ViewSet. */
-function resource<T, TInput = Partial<T>>(path: string) {
-  const base = `/api/crm/${path}/`;
+export function resource<T, TInput = Partial<T>>(path: string, prefix = '/api/crm') {
+  const base = `${prefix}/${path}/`;
   return {
     key: path,
     async list(params?: ListParams): Promise<Paginated<T>> {

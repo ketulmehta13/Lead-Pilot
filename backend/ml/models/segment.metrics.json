@@ -1,0 +1,112 @@
+{
+  "model": "segment",
+  "trained_at": "2026-11-21T11:36:24+00:00",
+  "task": "clustering",
+  "dataset": "UCI Online Retail",
+  "rows": 4338,
+  "transactions": 397884,
+  "features": [
+    "r_score",
+    "f_score",
+    "m_score"
+  ],
+  "chosen_model": "kmeans_k4",
+  "k": 4,
+  "silhouette": 0.3828,
+  "selection": "k=4 sits at the elbow of the inertia curve and maps onto the four standard RFM segments; its silhouette is reported next to the alternatives",
+  "k_comparison": [
+    {
+      "k": 2,
+      "inertia": 5778.1228,
+      "silhouette": 0.456
+    },
+    {
+      "k": 3,
+      "inertia": 4425.7978,
+      "silhouette": 0.3471
+    },
+    {
+      "k": 4,
+      "inertia": 3244.3995,
+      "silhouette": 0.3828
+    },
+    {
+      "k": 5,
+      "inertia": 2747.7554,
+      "silhouette": 0.3546
+    },
+    {
+      "k": 6,
+      "inertia": 2335.861,
+      "silhouette": 0.3523
+    },
+    {
+      "k": 7,
+      "inertia": 2095.8236,
+      "silhouette": 0.3471
+    },
+    {
+      "k": 8,
+      "inertia": 1915.364,
+      "silhouette": 0.3364
+    }
+  ],
+  "cluster_names": {
+    "1": "Champions",
+    "3": "Loyal",
+    "0": "At Risk",
+    "2": "Lost"
+  },
+  "centroids": {
+    "At Risk": {
+      "r_score": 0.3558,
+      "f_score": 0.5721,
+      "m_score": 0.6149
+    },
+    "Champions": {
+      "r_score": 0.7858,
+      "f_score": 0.8222,
+      "m_score": 0.805
+    },
+    "Lost": {
+      "r_score": 0.1877,
+      "f_score": 0.2141,
+      "m_score": 0.2162
+    },
+    "Loyal": {
+      "r_score": 0.6888,
+      "f_score": 0.3278,
+      "m_score": 0.2989
+    }
+  },
+  "profile": [
+    {
+      "segment": "Champions",
+      "customers": 1289,
+      "recency_days": 13.0,
+      "frequency": 7.0,
+      "monetary": 2361.97
+    },
+    {
+      "segment": "Loyal",
+      "customers": 826,
+      "recency_days": 24.0,
+      "frequency": 2.0,
+      "monetary": 352.985
+    },
+    {
+      "segment": "At Risk",
+      "customers": 1014,
+      "recency_days": 83.5,
+      "frequency": 3.0,
+      "monetary": 981.52
+    },
+    {
+      "segment": "Lost",
+      "customers": 1209,
+      "recency_days": 209.0,
+      "frequency": 1.0,
+      "monetary": 249.86
+    }
+  ]
+}

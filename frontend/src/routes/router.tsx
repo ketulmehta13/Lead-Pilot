@@ -31,6 +31,13 @@ const TasksPage = lazy(() =>
   import('../features/tasks/TasksPage').then((m) => ({ default: m.TasksPage })),
 );
 
+const TicketsPage = lazy(() =>
+  import('../features/tickets/TicketsPage').then((m) => ({ default: m.TicketsPage })),
+);
+const MlInsightsPage = lazy(() =>
+  import('../features/ml/MlInsightsPage').then((m) => ({ default: m.MlInsightsPage })),
+);
+
 /** Pages that are built; everything else in NAV_ITEMS shows a placeholder. */
 const PAGES: Record<string, ReactNode> = {
   '/dashboard': <DashboardPage />,
@@ -39,6 +46,8 @@ const PAGES: Record<string, ReactNode> = {
   '/companies': <CompaniesPage />,
   '/leads': <LeadsPage />,
   '/tasks': <TasksPage />,
+  '/tickets': <TicketsPage />,
+  '/ml-insights': <MlInsightsPage />,
 };
 
 export const routes: RouteObject[] = [

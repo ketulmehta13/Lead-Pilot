@@ -1,0 +1,75 @@
+{
+  "model": "lead_score",
+  "trained_at": "2026-11-21T11:35:52+00:00",
+  "task": "classification",
+  "dataset": "X Education lead scoring",
+  "rows": 9240,
+  "positive_rate": 0.3854,
+  "features": [
+    "source",
+    "last_touch",
+    "touches",
+    "engagement_min",
+    "do_not_email"
+  ],
+  "chosen_model": "xgboost",
+  "selection": "highest mean 5-fold CV ROC-AUC on the training split",
+  "comparison": [
+    {
+      "model": "xgboost",
+      "cv_roc_auc": 0.8735,
+      "cv_f1": 0.753,
+      "cv_precision": 0.7286,
+      "cv_recall": 0.7792,
+      "cv_roc_auc_std": 0.006
+    },
+    {
+      "model": "random_forest",
+      "cv_roc_auc": 0.869,
+      "cv_f1": 0.75,
+      "cv_precision": 0.7154,
+      "cv_recall": 0.7883,
+      "cv_roc_auc_std": 0.0053
+    },
+    {
+      "model": "logistic_regression",
+      "cv_roc_auc": 0.8538,
+      "cv_f1": 0.7133,
+      "cv_precision": 0.6851,
+      "cv_recall": 0.7441,
+      "cv_roc_auc_std": 0.0063
+    }
+  ],
+  "test": {
+    "threshold": 0.5,
+    "accuracy": 0.7965,
+    "precision": 0.7143,
+    "recall": 0.7865,
+    "f1": 0.7487,
+    "roc_auc": 0.8584,
+    "confusion_matrix": {
+      "labels": [
+        "negative",
+        "positive"
+      ],
+      "matrix": [
+        [
+          912,
+          224
+        ],
+        [
+          152,
+          560
+        ]
+      ]
+    },
+    "support": {
+      "negative": 1136,
+      "positive": 712
+    }
+  },
+  "thresholds": {
+    "hot": 70,
+    "warm": 40
+  }
+}

@@ -20,13 +20,14 @@ import {
 import type { Lead } from '../../types';
 import { useAuth } from '../auth/AuthContext';
 import { ConvertLeadModal } from './ConvertLeadModal';
+import { ScoreBadge } from '../../components/ml/ScoreBadge';
 import { LeadFormModal } from './LeadFormModal';
 
 export function LeadsPage() {
   const { hasRole } = useAuth();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const list = useListParams({ status: '', source: '' }, '-created_at');
+  const list = useListParams({ status: '', source: '', score_label: '' }, '-score');
   const [editing, setEditing] = useState<Lead | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Lead | null>(null);
@@ -90,18 +91,9 @@ export function LeadsPage() {
       key: 'score',
       header: 'Score',
       sortField: 'score',
-      render: (l) =>
-        l.score === null ? (
-          <span className="text-xs text-slate-400" title="AI scoring arrives in Phase 3">
-            Not scored
-          </span>
-        ) : (
-          <Badge
-            tone={l.score_label === 'hot' ? 'rose' : l.score_label === 'warm' ? 'amber' : 'sky'}
-          >
-            {l.score}
-          </Badge>
-        ),
+      render: (l) => (
+        <ScoreBadge score={l.score} label={l.score_label} factors={l.score_explanation} />
+      ),
     },
     {
       key: 'last_contacted',
@@ -168,7 +160,9 @@ export function LeadsPage() {
     },
   ];
 
-  const filtered = Boolean(list.search || list.filters.status || list.filters.source);
+  const filtered = Boolean(
+    list.search || list.filters.status || list.filters.source || list.filters.score_label,
+  );
 
   return (
     <section>
@@ -198,6 +192,16 @@ export function LeadsPage() {
           value={list.filters.source}
           onChange={(v) => list.setFilter('source', v)}
           options={LEAD_SOURCE_OPTIONS}
+        />
+        <FilterSelect
+          label="Score"
+          value={list.filters.score_label}
+          onChange={(v) => list.setFilter('score_label', v)}
+          options={[
+            { value: 'hot', label: 'Hot (70+)' },
+            { value: 'warm', label: 'Warm (40-69)' },
+            { value: 'cold', label: 'Cold (<40)' },
+          ]}
         />
       </Toolbar>
       <DataTable

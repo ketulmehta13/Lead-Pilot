@@ -14,12 +14,14 @@ import {
   YAxis,
 } from 'recharts';
 import { analyticsApi } from '../../api/analytics';
+import { mlApi } from '../../api/ml';
 import { parseApiError } from '../../api/errors';
 import { PageHeader } from '../../components/ui/misc';
 import { Spinner } from '../../components/ui/Spinner';
 import { formatINR, timeAgo } from '../../lib/format';
 import type { DashboardSummary } from '../../types';
 import { useAuth } from '../auth/AuthContext';
+import { ForecastChart } from '../ml/ForecastChart';
 import { ChartCard, TooltipBox } from './ChartCard';
 import { formatCompactINR, formatMonth, useChartTheme } from './chartTheme';
 
@@ -120,7 +122,7 @@ function DashboardBody({ data }: { data: DashboardSummary }) {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <RevenueTrend data={data} />
+        <RevenueSection data={data} />
         <PipelineByStage data={data} />
         <LeadsBySource data={data} />
         <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-800 dark:bg-slate-900">
@@ -176,6 +178,17 @@ function StatTile({
 }
 
 const AXIS_TICK = { fontSize: 12 };
+
+/** Revenue with the ML forecast when available; plain 12-month trend otherwise. */
+function RevenueSection({ data }: { data: DashboardSummary }) {
+  const forecast = useQuery({ queryKey: [mlApi.key, 'forecast'], queryFn: mlApi.forecast });
+  if (forecast.data?.ok) {
+    return (
+      <ForecastChart data={forecast.data} title="Revenue & forecast" className="lg:col-span-2" />
+    );
+  }
+  return <RevenueTrend data={data} />;
+}
 
 function RevenueTrend({ data }: { data: DashboardSummary }) {
   const theme = useChartTheme();

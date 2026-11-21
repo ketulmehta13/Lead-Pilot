@@ -17,3 +17,10 @@ if os.environ.get("REDIS_URL"):
             "LOCATION": os.environ["REDIS_URL"],
         }
     }
+else:
+    # No Redis (running without Docker): execute Celery tasks inline so ML scoring etc. still
+    # happens instead of hanging on an unreachable broker.
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = False
+    CELERY_BROKER_URL = "memory://"
+    CELERY_RESULT_BACKEND = "cache+memory://"

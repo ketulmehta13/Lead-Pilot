@@ -6,7 +6,9 @@
 Demo logins (password for all: see DEMO_PASSWORD):
     admin, priya (sales), rahul (sales), sneha (support)
 
-Tickets (Phase 3) are seeded once that model exists.
+Besides the 150 pipeline deals it adds 240 closed deals spread over the previous 24 months
+(so forecasting and RFM segmentation have history) and 80 support tickets. If trained ML
+models exist, leads are scored and segments/churn computed at the end.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from faker import Faker
 from accounts.models import User
 from crm.models import Activity, Company, Contact, Deal, Lead, Task
 from crm.services import CONTACTING_TYPES, OPEN_LEAD_STATUSES
+from support.models import Ticket
 
 DEMO_PASSWORD = "LeadPilot@123"
 DEMO_USERS = [
@@ -47,6 +50,56 @@ DEAL_PRODUCTS = [
     "Renewal",
     "Expansion",
     "Consulting",
+]
+TICKET_TEMPLATES = [
+    (
+        "Production dashboard is down",
+        "Our whole team is locked out since this morning. This is critical, we need it fixed "
+        "immediately.",
+    ),
+    (
+        "Charged twice for this month",
+        "We were double charged on the latest invoice. Very disappointed, please refund the "
+        "extra amount asap.",
+    ),
+    (
+        "Data export broken",
+        "The export has stopped working and we lost all our data from yesterday's import. "
+        "Terrible experience.",
+    ),
+    (
+        "Thinking about cancelling",
+        "Support has been slow and unhelpful. If this isn't resolved we will cancel our "
+        "subscription.",
+    ),
+    (
+        "App crashes on login",
+        "The mobile app crashes every time I try to log in. Can't access anything. Awful.",
+    ),
+    (
+        "Reports look wrong",
+        "The new reports page is confusing and the numbers look wrong to me. Not happy with "
+        "the change.",
+    ),
+    ("Slow page loads", "Pages have been really slow this week, it's frustrating to use."),
+    (
+        "Disappointing onboarding",
+        "The onboarding session was disappointing and didn't cover what we asked for.",
+    ),
+    ("How do I add a user?", "Can you tell me how to add a new team member to our account?"),
+    ("Invoice copy", "Please send a copy of last month's invoice to our finance team."),
+    ("Change billing address", "We moved offices. Please update the billing address on file."),
+    ("API limits question", "What are the API rate limits on our current plan?"),
+    (
+        "Great support experience",
+        "Thanks for the quick help yesterday, the team was excellent and very friendly.",
+    ),
+    ("Loving the new pipeline", "The new pipeline view is great, it works perfectly for us."),
+    (
+        "Feature idea: calendar sync",
+        "Really enjoy the product! Would love calendar sync as a future feature.",
+    ),
+    ("Password reset needed", "Please reset my password asap, I have a client demo in an hour."),
 ]
 TASK_TITLES = [
     "Send follow-up email", "Schedule demo", "Prepare proposal", "Call back about pricing",
@@ -72,7 +125,7 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             if flush:
-                for model in (Task, Activity, Deal, Lead, Contact, Company):
+                for model in (Ticket, Task, Activity, Deal, Lead, Contact, Company):
                     model.objects.all().delete()
 
             users = self._users()
@@ -124,9 +177,23 @@ class Command(BaseCommand):
                 lead.created_at = now - timedelta(days=random.randint(0, 365))
             Lead.objects.bulk_update(leads, ["created_at"])
 
+            # Engaged leads get more interactions (as in real CRMs), so ML scores line up with
+            # lead status instead of being pure noise.
+            status_weight = {
+                "converted": 5.0,
+                "qualified": 4.0,
+                "contacted": 2.0,
+                "new": 1.0,
+                "unqualified": 0.5,
+            }
+            weight: dict[int, float] = {}
+            for lead in leads:
+                weight[lead.contact_id] = max(
+                    weight.get(lead.contact_id, 0.0), status_weight[lead.status]
+                )
+            contact_weights = [weight.get(c.id, 1.0) for c in contacts]
             activities = []
-            for _ in range(500):
-                contact = random.choice(contacts)
+            for contact in random.choices(contacts, weights=contact_weights, k=500):
                 kind = random.choices(Activity.Type.values, weights=[30, 35, 15, 20])[0]
                 activities.append(
                     Activity(
@@ -172,13 +239,18 @@ class Command(BaseCommand):
                 )
             Task.objects.bulk_create(tasks)
 
+            history = self._closed_history(contacts, now, count=240)
+            tickets = self._tickets(contacts, users, now, count=80)
+
         self.stdout.write(
             self.style.SUCCESS(
                 f"Seeded {len(users)} users, {len(companies)} companies, {len(contacts)} contacts, "
-                f"{len(leads)} leads, {len(deals)} deals, {len(activities)} activities, "
-                f"{len(tasks)} tasks."
+                f"{len(leads)} leads, {len(deals)} pipeline deals + {len(history)} closed deals "
+                f"of history, {len(activities)} activities, {len(tasks)} tasks, "
+                f"{len(tickets)} tickets."
             )
         )
+        self._apply_ml()
         self.stdout.write(
             "Logins: " + ", ".join(u for u, *_ in DEMO_USERS) + f"  (password: {DEMO_PASSWORD})"
         )
@@ -208,8 +280,7 @@ class Command(BaseCommand):
                 stage=stage,
                 probability=Deal.DEFAULT_PROBABILITY[stage],
                 position=positions[stage],
-                # Wins/losses spread over the last 12 months feed the revenue trend.
-                closed_at=now - timedelta(days=random.randint(0, 360)) if closed else None,
+                closed_at=closed_date(now) if closed else None,
                 expected_close_date=(
                     None if closed else (now + timedelta(days=random.randint(7, 90))).date()
                 ),
@@ -217,6 +288,76 @@ class Command(BaseCommand):
             positions[stage] += 1
             deals.append(deal)
         return Deal.objects.bulk_create(deals)
+
+    def _closed_history(self, contacts: list[Contact], now, count: int) -> list[Deal]:
+        """Won/lost deals from the past 24 months: growing over time, busier in Q4."""
+        positions = {
+            stage: Deal.objects.filter(stage=stage).count() for stage in Deal.CLOSED_STAGES
+        }
+        customers = random.sample(contacts, k=min(len(contacts), 140))  # repeat buyers exist
+        deals = []
+        for _ in range(count):
+            contact = random.choice(customers)
+            stage = Deal.Stage.WON if random.random() < 0.65 else Deal.Stage.LOST
+            name = contact.company.name if contact.company else contact.full_name
+            deals.append(
+                Deal(
+                    owner=contact.owner,
+                    contact=contact,
+                    title=f"{name} – {random.choice(DEAL_PRODUCTS)}",
+                    value=Decimal(random.randrange(50_000, 1_200_000, 10_000)),
+                    stage=stage,
+                    probability=Deal.DEFAULT_PROBABILITY[stage],
+                    position=positions[stage],
+                    closed_at=closed_date(now),
+                )
+            )
+            positions[stage] += 1
+        return Deal.objects.bulk_create(deals)
+
+    def _tickets(self, contacts: list[Contact], users: list[User], now, count: int) -> list[Ticket]:
+        """Support tickets from templates. bulk_create skips the classify signal, so the
+        sentiment model is applied explicitly afterwards."""
+        from support.services import apply_classification
+
+        support = [u for u in users if u.is_support] or users
+        tickets = []
+        for _ in range(count):
+            subject, body = random.choice(TICKET_TEMPLATES)
+            status = random.choices(Ticket.Status.values, weights=[40, 20, 25, 15])[0]
+            tickets.append(
+                Ticket(
+                    owner=random.choice(support),
+                    contact=random.choice(contacts),
+                    subject=subject,
+                    description=body,
+                    status=status,
+                    assigned_to=random.choice(support) if random.random() < 0.7 else None,
+                    resolved_at=now if status in ("resolved", "closed") else None,
+                )
+            )
+        tickets = Ticket.objects.bulk_create(tickets)
+        for t in tickets:
+            t.created_at = now - timedelta(days=random.randint(0, 60), hours=random.randint(0, 23))
+            apply_classification(t)
+        Ticket.objects.bulk_update(
+            tickets, ["created_at", "sentiment", "sentiment_score", "urgent", "priority"]
+        )
+        return tickets
+
+    def _apply_ml(self) -> None:
+        from ml import services as ml
+
+        status = ml.model_status()
+        if not (status["lead_score"] or status["segment"] or status["churn"]):
+            self.stdout.write("ML models not trained yet: run `python manage.py ml_train`.")
+            return
+        scored = ml.rescore_all()
+        insights = ml.refresh_customer_insights()
+        self.stdout.write(
+            f"ML: scored {scored} leads; {insights['segmented']} customers segmented, "
+            f"{insights['churn_scored']} churn-scored."
+        )
 
     def _users(self) -> list[User]:
         users = []
@@ -237,3 +378,19 @@ class Command(BaseCommand):
                 user.save()
             users.append(user)
         return users
+
+
+def closed_date(now):
+    """A close date within the last 24 months; recent months and Oct-Dec are busier."""
+
+    def month_weight(months_ago: int) -> float:
+        month = (now.month - months_ago - 1) % 12 + 1
+        return (24 - months_ago) * (1.4 if month in (10, 11, 12) else 1.0)
+
+    months_ago = random.choices(range(24), weights=[month_weight(m) for m in range(24)])[0]
+    start = now.replace(day=1, hour=10, minute=0, second=0, microsecond=0)
+    for _ in range(months_ago):
+        start = (start - timedelta(days=1)).replace(day=1)
+    latest = now if months_ago == 0 else start + timedelta(days=27)
+    span = max((latest - start).days, 1)
+    return start + timedelta(days=random.randint(0, span - 1), hours=random.randint(0, 8))

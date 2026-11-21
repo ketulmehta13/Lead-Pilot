@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from crm import services
 from crm.models import Activity, Company, Contact, Deal, Lead, Task
+from support.models import Ticket
 
 pytestmark = pytest.mark.django_db
 
@@ -148,7 +149,10 @@ def test_seed_demo_creates_expected_volumes(db):
     assert Lead.objects.count() == 400
     assert Activity.objects.count() == 500
     assert Task.objects.count() == 120
-    assert Deal.objects.count() == 150
+    # 150 pipeline deals + 240 closed deals of history for forecasting/RFM.
+    assert Deal.objects.count() == 390
+    assert Deal.objects.filter(stage__in=["won", "lost"], closed_at__isnull=True).count() == 0
+    assert Ticket.objects.count() == 80
     # Every converted lead has exactly one deal.
     assert not Lead.objects.filter(status="converted", deal__isnull=True).exists()
     # Every contact belongs to the same rep as its company (keeps owner scoping coherent).

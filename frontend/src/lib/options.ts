@@ -1,4 +1,5 @@
 import type { Tone } from '../components/ui/misc';
+import type { TicketPriority, TicketStatus } from '../types';
 
 export interface Option {
   value: string;
@@ -85,3 +86,16 @@ export const DEAL_STAGE_OPTIONS: Option[] = [
 export const OPEN_DEAL_STAGE_OPTIONS = DEAL_STAGE_OPTIONS.filter(
   (o) => o.value !== 'won' && o.value !== 'lost',
 );
+
+export const TICKET_STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
+  { value: 'open', label: 'Open' },
+  { value: 'in_progress', label: 'In progress' },
+  { value: 'resolved', label: 'Resolved' },
+  { value: 'closed', label: 'Closed' },
+];
+
+export const TICKET_PRIORITY_OPTIONS: { value: TicketPriority; label: string }[] = [
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+];

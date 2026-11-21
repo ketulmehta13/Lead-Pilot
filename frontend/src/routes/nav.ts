@@ -82,7 +82,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: LifeBuoy,
     phase: 3,
     description: 'Support tickets with automatic sentiment and priority.',
-    roles: ['admin', 'support'],
+    roles: ['admin', 'support', 'sales'],
   },
   {
     path: '/ask',

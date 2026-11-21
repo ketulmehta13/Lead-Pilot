@@ -4,10 +4,11 @@ LeadPilot is an AI-powered CRM for small businesses: Django + React, with ML lea
 GenAI writing, RAG search, a tool-calling agent with human approval, and Razorpay payments
 (test mode). The full spec is in [CLAUDE.md](CLAUDE.md).
 
-> Status: **Phase 2 (pipeline + dashboard)** done: JWT login with roles; companies, contacts
-> (CSV import, activity timeline), leads and tasks; deals on a drag-and-drop Kanban; lead →
-> deal conversion; a KPI dashboard; daily overdue-task reminders. Later features arrive phase
-> by phase.
+> Status: **Phase 3 (ML models)** done: JWT login with roles; companies, contacts (CSV
+> import, activity timeline), leads and tasks; a drag-and-drop deal pipeline and KPI dashboard;
+> support tickets; and five ML models (lead scoring with SHAP explanations, churn, RFM
+> segmentation, ticket sentiment → priority, revenue forecast). Later features arrive phase by
+> phase.
 
 ## Demo data and logins
 
@@ -16,7 +17,9 @@ cd backend
 python manage.py seed_demo          # add --flush to wipe and re-seed
 ```
 
-Creates 50 companies, 300 contacts, 400 leads, 150 deals, 500 activities and 120 tasks.
+Creates 50 companies, 300 contacts, 400 leads, 150 pipeline deals plus 240 closed deals of
+24-month history (for forecasting and segmentation), 500 activities, 120 tasks and 80 tickets.
+If trained models exist it also scores every lead and segments customers.
 Every demo user has the password `LeadPilot@123`:
 
 | Username | Role      | Sees                                         |
@@ -39,6 +42,10 @@ Every demo user has the password `LeadPilot@123`:
 | `POST /api/crm/deals/<id>/move/`           | `{stage, position}`, atomic reorder              |
 | `POST /api/crm/leads/<id>/convert/`        | Creates a deal, marks the lead converted         |
 | `GET /api/analytics/summary/`              | Dashboard KPIs (cached 60 s, refreshed on change) |
+| `/api/support/tickets/` (+ `comments/`)    | Tickets; sentiment + priority set automatically   |
+| `POST /api/ml/score-lead/<id>/`            | Score one lead now (score, label, SHAP factors)  |
+| `GET /api/ml/metrics/` · `forecast/` · `segments/` | Model metrics, revenue forecast, segments |
+| `POST /api/ml/retrain/` · `rescore-all/`   | Admin only                                       |
 
 Full, interactive docs: http://localhost:8000/api/docs/
 
@@ -101,6 +108,34 @@ Celery needs Redis; outside Docker run `celery -A config worker --pool=solo -l i
 to the worker log in dev). To try it now: `python manage.py shell -c "from crm.tasks import
 send_overdue_task_reminders as t; print(t())"`.
 
+## Machine learning
+
+Five models, each explored in a notebook (`backend/ml/notebooks/`) and shipped as a pipeline
+(`backend/ml/pipelines/`). Trained models + metrics JSON live in `backend/ml/models/` and are
+committed (all < 120 KB), so the app works right after cloning.
+
+| Model | Trained on | Chosen (by CV) | Test result |
+| --- | --- | --- | --- |
+| Lead scoring | X Education leads (9,240) | XGBoost | ROC-AUC 0.858 · F1 0.749 |
+| Churn | IBM Telco (7,043 customers) | XGBoost | ROC-AUC 0.834 · recall 0.80 |
+| Segmentation | UCI Online Retail (4,338 customers) | K-Means, k=4 on RFM percentiles | silhouette 0.383 |
+| Ticket sentiment | UCI labelled sentences (3,000) | TF-IDF + Logistic Regression | ROC-AUC 0.906 · F1 0.835 |
+| Forecast | LeadPilot won deals by month | best of 3 regressions + 2 baselines in a 9-month backtest | see ML Insights |
+
+Public datasets use different columns than a CRM, so every model trains on a small **shared
+feature space** that `ml/features.py` can also compute from LeadPilot records (money and
+counts as within-dataset percentiles). Scores refresh automatically: editing a lead or logging
+an activity rescores it (Celery), winning a deal refreshes segments and churn, new tickets are
+classified on save, and nightly Beat jobs rescore everything. A missing model never breaks the
+CRM: fields stay empty and the API answers 503.
+
+```bash
+cd backend
+python manage.py ml_download_data      # public datasets -> ml/data/raw (gitignored)
+python manage.py ml_train              # train all (or: ml_train lead_score churn ...)
+python ml/notebooks/run_notebooks.py   # execute every notebook top to bottom
+```
+
 ## Tests and linting
 
 ```bash
@@ -127,7 +162,7 @@ frontend/  src/ api/ components/ hooks/ layouts/ pages/ routes/
 - [x] Phase 0: Setup & skeleton
 - [x] Phase 1: Auth + core CRM
 - [x] Phase 2: Pipeline, tasks & dashboard
-- [ ] Phase 3: ML models
+- [x] Phase 3: ML models
 - [ ] Phase 4: GenAI writer & summarizer
 - [ ] Phase 5: RAG (Ask LeadPilot)
 - [ ] Phase 6: Agent

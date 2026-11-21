@@ -68,3 +68,10 @@ export const convertLeadSchema = z.object({
   stage: z.string().min(1),
   expected_close_date: z.string(),
 });
+
+export const ticketSchema = z.object({
+  subject: z.string().trim().min(1, 'Subject is required').max(200),
+  description: z.string().trim().min(1, 'Describe the problem').max(10_000),
+  contact: z.string().min(1, 'Choose the customer'),
+  priority: z.string(),
+});

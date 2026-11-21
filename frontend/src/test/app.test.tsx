@@ -32,6 +32,29 @@ vi.mock('../api/analytics', () => ({
     }),
   },
 }));
+vi.mock('../api/ml', () => ({
+  mlApi: {
+    key: 'ml',
+    metrics: vi.fn().mockResolvedValue({ available: {}, models: {} }),
+    forecast: vi.fn().mockResolvedValue({ ok: false, reason: 'Need more history' }),
+    segments: vi.fn().mockResolvedValue({ segments: [], silhouette: null }),
+    scoreLead: vi.fn(),
+    retrain: vi.fn(),
+    rescoreAll: vi.fn(),
+  },
+}));
+vi.mock('../api/support', () => ({
+  ticketsApi: {
+    key: 'tickets',
+    list: vi.fn().mockResolvedValue({ count: 0, next: null, previous: null, results: [] }),
+    get: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+    comments: vi.fn().mockResolvedValue([]),
+    addComment: vi.fn(),
+  },
+}));
 vi.mock('../api/crm', () => {
   const resource = (key: string) => ({
     key,
@@ -133,6 +156,19 @@ describe('navigation by role', () => {
       .getAllByRole('link')
       .map((a) => a.textContent);
     expect(labels).toEqual(['Dashboard', 'Contacts', 'Tickets', 'Ask LeadPilot', 'Settings']);
+  });
+
+  it('sales reps see tickets read-only; support can create them', async () => {
+    me.mockResolvedValue(makeUser('sales'));
+    renderApp('/tickets');
+    expect(await screen.findByRole('heading', { name: 'Tickets' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new ticket/i })).not.toBeInTheDocument();
+  });
+
+  it('support can create tickets', async () => {
+    me.mockResolvedValue(makeUser('support'));
+    renderApp('/tickets');
+    expect(await screen.findByRole('button', { name: /new ticket/i })).toBeInTheDocument();
   });
 
   it('support gets "No access" on a sales page opened by URL', async () => {

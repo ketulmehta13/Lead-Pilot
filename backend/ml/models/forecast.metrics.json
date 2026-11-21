@@ -1,0 +1,137 @@
+{
+  "model": "forecast",
+  "trained_at": "2026-11-21T11:36:42+00:00",
+  "task": "regression",
+  "dataset": "LeadPilot won deals (monthly revenue)",
+  "rows": 23,
+  "features": [
+    "lag1",
+    "lag2",
+    "lag3",
+    "t",
+    "sin",
+    "cos"
+  ],
+  "chosen_model": "naive",
+  "selection": "lowest RMSE in a rolling-origin backtest over the last 9 months, regressions vs naive and 3-month moving-average baselines",
+  "test": {
+    "mae": 3008333.3333,
+    "rmse": 3959567.5269,
+    "r2": 0.3568
+  },
+  "comparison": [
+    {
+      "method": "naive",
+      "mae": 3008333.3333,
+      "rmse": 3959567.5269,
+      "r2": 0.3568
+    },
+    {
+      "method": "trend_seasonal_regression",
+      "mae": 3692447.0795,
+      "rmse": 4460397.8321,
+      "r2": 0.1838
+    },
+    {
+      "method": "ridge_regression",
+      "mae": 3369124.6151,
+      "rmse": 4619070.4326,
+      "r2": 0.1247
+    },
+    {
+      "method": "moving_average",
+      "mae": 3519444.4444,
+      "rmse": 5157907.0607,
+      "r2": -0.0915
+    },
+    {
+      "method": "linear_regression",
+      "mae": 3855664.5936,
+      "rmse": 5728486.3157,
+      "r2": -0.3463
+    }
+  ],
+  "backtest": [
+    {
+      "month": "2026-03",
+      "actual": 7505000.0,
+      "linear_regression": 2807283.25,
+      "trend_seasonal_regression": 9488343.03,
+      "ridge_regression": 3827696.13,
+      "naive": 9820000.0,
+      "moving_average": 6820000.0
+    },
+    {
+      "month": "2026-04",
+      "actual": 7785000.0,
+      "linear_regression": 6771496.68,
+      "trend_seasonal_regression": 9481221.18,
+      "ridge_regression": 7840478.41,
+      "naive": 7505000.0,
+      "moving_average": 6398333.33
+    },
+    {
+      "month": "2026-05",
+      "actual": 7495000.0,
+      "linear_regression": 8139353.18,
+      "trend_seasonal_regression": 9568577.09,
+      "ridge_regression": 7783100.22,
+      "naive": 7785000.0,
+      "moving_average": 8370000.0
+    },
+    {
+      "month": "2026-06",
+      "actual": 7810000.0,
+      "linear_regression": 7566503.19,
+      "trend_seasonal_regression": 9389472.92,
+      "ridge_regression": 8304002.29,
+      "naive": 7495000.0,
+      "moving_average": 7595000.0
+    },
+    {
+      "month": "2026-07",
+      "actual": 3300000.0,
+      "linear_regression": 7558979.15,
+      "trend_seasonal_regression": 9486886.07,
+      "ridge_regression": 8589793.17,
+      "naive": 7810000.0,
+      "moving_average": 7696666.67
+    },
+    {
+      "month": "2026-08",
+      "actual": 5190000.0,
+      "linear_regression": 6902197.66,
+      "trend_seasonal_regression": 7739774.03,
+      "ridge_regression": 7686048.55,
+      "naive": 3300000.0,
+      "moving_average": 6201666.67
+    },
+    {
+      "month": "2026-09",
+      "actual": 12810000.0,
+      "linear_regression": 5111089.63,
+      "trend_seasonal_regression": 7621456.31,
+      "ridge_regression": 6374396.29,
+      "naive": 5190000.0,
+      "moving_average": 5433333.33
+    },
+    {
+      "month": "2026-10",
+      "actual": 19310000.0,
+      "linear_regression": 5487755.11,
+      "trend_seasonal_regression": 10001724.67,
+      "ridge_regression": 9308471.67,
+      "naive": 12810000.0,
+      "moving_average": 7100000.0
+    },
+    {
+      "month": "2026-11",
+      "actual": 15955000.0,
+      "linear_regression": 16564579.2,
+      "trend_seasonal_regression": 13289069.62,
+      "ridge_regression": 14370737.01,
+      "naive": 19310000.0,
+      "moving_average": 12436666.67
+    }
+  ]
+}

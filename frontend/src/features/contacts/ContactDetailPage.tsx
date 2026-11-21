@@ -18,6 +18,8 @@ import {
   labelOf,
 } from '../../lib/options';
 import { useAuth } from '../auth/AuthContext';
+import { ChurnChip, SegmentChip } from '../../components/ml/CustomerChips';
+import { ScoreBadge } from '../../components/ml/ScoreBadge';
 import { ActivityTimeline } from './ActivityTimeline';
 import { ContactFormModal } from './ContactFormModal';
 import { LogActivityForm } from './LogActivityForm';
@@ -127,6 +129,12 @@ export function ContactDetailPage() {
                 </span>
               )}
             </div>
+            {(c.segment || c.churn_risk !== null) && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                <SegmentChip segment={c.segment} />
+                <ChurnChip risk={c.churn_risk} />
+              </div>
+            )}
             {c.tags.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {c.tags.map((t) => (
@@ -174,6 +182,11 @@ export function ContactDetailPage() {
                   {leads.data!.results.map((l) => (
                     <li key={l.id} className="text-sm">
                       <div className="flex items-center justify-between gap-2">
+                        <ScoreBadge
+                          score={l.score}
+                          label={l.score_label}
+                          factors={l.score_explanation}
+                        />
                         <Badge tone={LEAD_STATUS_TONE[l.status]}>
                           {labelOf(LEAD_STATUS_OPTIONS, l.status)}
                         </Badge>

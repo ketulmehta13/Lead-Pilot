@@ -10,6 +10,7 @@ import { Badge, FilterSelect, PageHeader, SearchInput, Toolbar } from '../../com
 import { useListParams } from '../../hooks/useListParams';
 import type { Contact } from '../../types';
 import { useAuth } from '../auth/AuthContext';
+import { ChurnChip, SegmentChip } from '../../components/ml/CustomerChips';
 import { ContactFormModal, useCompanyOptions } from './ContactFormModal';
 import { ImportContactsModal } from './ImportContactsModal';
 
@@ -41,6 +42,21 @@ export function ContactsPage() {
       ),
     },
     { key: 'company', header: 'Company', render: (c) => c.company_name ?? '—' },
+    {
+      key: 'insights',
+      header: 'Segment',
+      className: 'hidden sm:table-cell',
+      sortField: 'churn_risk',
+      render: (c) =>
+        c.segment || c.churn_risk !== null ? (
+          <div className="flex flex-wrap gap-1">
+            <SegmentChip segment={c.segment} />
+            <ChurnChip risk={c.churn_risk} />
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400">Prospect</span>
+        ),
+    },
     {
       key: 'phone',
       header: 'Phone',
