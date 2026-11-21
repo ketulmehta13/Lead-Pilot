@@ -1,7 +1,10 @@
 # Deploying LeadPilot (free plans)
 
-The backend (API + Postgres with pgvector + Redis) goes on **Render** using the Blueprint in
-`render.yaml`; the React app goes on **Vercel**. Both are free. Total time: about 30 minutes.
+The API and Redis go on **Render** (Blueprint in `render.yaml`), Postgres with pgvector on
+**Neon**, and the React app on **Vercel**. All free. Total time: about 30 minutes.
+
+Why Neon: Render allows only one free database per account and deletes free databases after
+30 days; Neon's free tier has pgvector and doesn't expire.
 
 **Free-plan trade-offs** (all handled in `render.yaml`):
 
@@ -9,16 +12,28 @@ The backend (API + Postgres with pgvector + Redis) goes on **Render** using the 
 | --- | --- |
 | No background worker | `CELERY_TASK_ALWAYS_EAGER=true`: scoring, indexing and agent runs happen inside the API. Scheduled jobs (08:00 reminders, nightly rescoring) don't run. |
 | API sleeps after ~15 min idle | The first visit takes ~1 minute to wake it; the frontend waits up to 60 s. |
-| Free Postgres expires after 30 days | Render emails you; delete and recreate `leadpilot-db` from the Blueprint, then redeploy. Demo data reloads on its own. |
+| Neon pauses the database when idle | The first query after a pause takes a second or two longer; nothing to do. |
 | No Shell | `seed_demo --if-empty` runs on every start and loads demo data only when the database is empty. |
 | 512 MB RAM | `EMBEDDINGS_BACKEND=hash` (Ask LeadPilot works, retrieval is less precise than with the MiniLM model). |
+
+## 0. Database on Neon
+
+1. Sign up at https://neon.tech (GitHub login is fine) → **Create project**: name
+   `leadpilot`, Postgres 16 or newer, region closest to your Render region (e.g. Singapore).
+2. On the project dashboard click **Connect**, turn **Connection pooling OFF**, and copy the
+   connection string. It looks like
+   `postgresql://neondb_owner:xxxx@ep-xxxx.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`.
+   Keep it secret: it contains the password.
+
+The `vector` extension is created by the first migration; nothing to enable by hand.
 
 ## 1. Backend on Render
 
 1. Sign up at https://render.com with **GitHub** and allow access to the `Lead-Pilot` repo.
 2. **New → Blueprint** → pick the repo → branch `main`. Render reads `render.yaml` and lists
-   `leadpilot-db`, `leadpilot-redis` and `leadpilot-api`.
+   `leadpilot-redis` and `leadpilot-api`.
 3. It asks for the variables marked `sync: false`:
+   - `DATABASE_URL`: the Neon connection string from step 0.
    - `GROQ_API_KEY`: your Groq key (for real AI output).
    - `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL`: put a placeholder such as
      `https://example.com` for now; you'll replace them after step 2.
@@ -62,6 +77,7 @@ Ask LeadPilot and run the agent.
 | Login says "Network Error" / CORS error in the browser console | `CORS_ALLOWED_ORIGINS` doesn't exactly match the Vercel URL (https, no trailing slash), or the API wasn't redeployed after changing it |
 | Login hangs ~1 min the first time | The free API was asleep; that's normal |
 | Page refresh on `/contacts` gives 404 on Vercel | Root Directory isn't `frontend`, so `vercel.json` wasn't used |
+| Health check shows `"database": "down"` | `DATABASE_URL` is wrong, or copied from the pooled connection; use the direct one with `sslmode=require` |
 | Deploy fails "out of memory" | Free 512 MB limit; check that `EMBEDDINGS_BACKEND=hash` |
 | AI shows "offline draft" text | `GROQ_API_KEY` not set on Render; add it and redeploy |
 

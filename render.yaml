@@ -1,18 +1,14 @@
-# Render Blueprint (FREE plans): API + Postgres (pgvector) + Redis. See docs/DEPLOY.md.
+# Render Blueprint (FREE plans): API + Redis on Render, Postgres (pgvector) on Neon.
+# See docs/DEPLOY.md.
 # Deploy: Render dashboard -> New -> Blueprint -> pick this repo.
 #
 # Free-plan trade-offs:
 # - No Celery worker (workers are paid): CELERY_TASK_ALWAYS_EAGER runs tasks inside the API.
 #   Scheduled jobs (08:00 reminders, nightly rescoring) don't run; user-triggered ones do.
 # - The API sleeps after ~15 min idle; the first request then takes ~1 min to wake it.
-# - Free Postgres expires after 30 days (Render emails you); recreate it and redeploy.
+# - Postgres is external (Neon free tier: pgvector, no expiry). Render allows only one free
+#   database per account, and its free databases expire after 30 days.
 # - No Shell on free: demo data is loaded on start when the database is empty.
-databases:
-  - name: leadpilot-db
-    plan: free
-    databaseName: leadpilot
-    user: leadpilot
-
 services:
   - type: keyvalue
     name: leadpilot-redis
@@ -37,10 +33,10 @@ services:
         value: config.settings.prod
       - key: DJANGO_SECRET_KEY
         generateValue: true
+      # Neon connection string (direct, not pooled), e.g.
+      # postgresql://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require
       - key: DATABASE_URL
-        fromDatabase:
-          name: leadpilot-db
-          property: connectionString
+        sync: false
       - key: REDIS_URL
         fromService:
           type: keyvalue

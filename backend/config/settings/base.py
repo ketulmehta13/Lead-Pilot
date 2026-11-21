@@ -87,6 +87,8 @@ DATABASES = {
     "default": dj_database_url.config(
         default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=60,
+        # Re-check reused connections: serverless Postgres (Neon) drops them when it idles.
+        conn_health_checks=True,
     )
 }
 
