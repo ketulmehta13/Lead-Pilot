@@ -278,7 +278,13 @@ def convert_lead(
     expected_close_date: date | None = None,
 ) -> Deal:
     """Turn a lead into a deal and mark the lead converted (once only)."""
-    lead = Lead.objects.select_for_update().select_related("contact__company").get(pk=lead.pk)
+    # Lock only the lead row: Postgres rejects FOR UPDATE on the nullable side of the
+    # contact->company outer join that select_related would add.
+    lead = (
+        Lead.objects.select_for_update(of=("self",))
+        .select_related("contact__company")
+        .get(pk=lead.pk)
+    )
     if lead.status == Lead.Status.CONVERTED or Deal.objects.filter(lead=lead).exists():
         raise LeadAlreadyConverted("This lead has already been converted.")
 
