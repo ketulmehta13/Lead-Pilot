@@ -1,0 +1,22 @@
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+extend-exclude = "migrations"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["migrations", "ml/notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "DJ"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py", "*_tests.py"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["."]
+omit = ["*/migrations/*", "config/*", "manage.py", "*/tests/*", "tests/*"]

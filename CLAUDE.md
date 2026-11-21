@@ -1,0 +1,166 @@
+# LeadPilot — AI-Powered CRM (Project Spec)
+
+You are a senior full-stack + ML engineer. Help me build "LeadPilot", an AI-powered CRM
+for small businesses. Follow this spec in every session. We build in phases; I give you one
+phase at a time. Do NOT build future phases early. After each phase: list files changed,
+how to run it, and how to test it.
+
+## Build status
+- [x] Phase 0 — Setup & skeleton
+- [ ] Phase 1 — Auth + core CRM
+- [ ] Phase 2 — Pipeline, tasks & dashboard
+- [ ] Phase 3 — ML models
+- [ ] Phase 4 — GenAI writer & summarizer
+- [ ] Phase 5 — RAG: Ask LeadPilot
+- [ ] Phase 6 — Agent
+- [ ] Phase 7 — Invoicing & Razorpay
+- [ ] Phase 8 — Testing, polish & deploy
+
+Local note: when `DATABASE_URL` is unset the backend falls back to SQLite so it can run
+without Docker. Docker Compose (Postgres + pgvector) is the real target; pgvector features
+(Phase 5+) need Postgres.
+
+## Goal
+A portfolio-grade CRM that demonstrates: full-stack development (React + Django),
+core ML (classification, regression, clustering, NLP, evaluation), Generative AI
+(LLM writing, summarization, RAG), Agentic AI (tool-calling agent with human approval),
+and payment API integration (Razorpay Test Mode).
+
+## Tech stack (do not change without asking)
+- Backend: Python 3.11, Django 5, Django REST Framework, SimpleJWT, django-filter,
+  drf-spectacular (Swagger docs), django-cors-headers
+- DB: PostgreSQL 16 with pgvector extension
+- Async: Celery + Redis (Celery Beat for scheduled jobs)
+- ML: pandas, numpy, scikit-learn, xgboost, imbalanced-learn, shap, joblib
+- GenAI: Groq API (OpenAI-compatible) via a provider wrapper so Claude/OpenAI can be swapped;
+  embeddings with sentence-transformers (all-MiniLM-L6-v2, 384 dims) stored in pgvector
+- Agent: custom tool-calling loop (or LangGraph) using the LLM's function calling
+- Payments: razorpay Python SDK + Razorpay Checkout.js on frontend (TEST MODE ONLY)
+- Frontend: React 18 + Vite + TypeScript, Tailwind CSS, React Router, TanStack Query,
+  Axios, React Hook Form + Zod, Recharts, @dnd-kit (Kanban), lucide-react icons
+- Testing: pytest + pytest-django (backend), Vitest (frontend), Playwright (E2E)
+- DevOps: Docker Compose (postgres, redis, backend, celery, frontend), .env files,
+  GitHub Actions CI (lint + tests)
+
+## Repo structure
+```
+leadpilot/
+  backend/
+    config/        # settings (base/dev/prod), urls, celery.py
+    accounts/      # custom User, roles, JWT auth
+    crm/           # Company, Contact, Lead, Deal, Activity, Task
+    support/       # Ticket, TicketComment
+    ml/            # notebooks/, pipelines/, models/ (.joblib), services.py, APIs
+    genai/         # llm.py (provider wrapper), prompts/, embeddings.py, rag.py
+    agent/         # tools.py, agent.py, AgentRun, AgentStep, approval APIs
+    billing/       # Invoice, InvoiceItem, Payment, WebhookEvent, razorpay_service.py
+    analytics/     # dashboard aggregate APIs
+    common/        # base models (timestamps, owner), permissions, pagination
+  frontend/
+    src/ api/ components/ features/<module>/ hooks/ layouts/ pages/ routes/ types/
+    e2e/           # Playwright tests
+  docker-compose.yml, .env.example, README.md, CLAUDE.md
+```
+
+## Roles & permissions
+- Admin: everything, user management, model retraining
+- Sales Rep: own leads/deals/contacts, invoices for own deals, agent use
+- Support: tickets only, read-only contacts
+
+Enforce with DRF permission classes + queryset filtering (users only see their own data
+unless Admin).
+
+## Core data models (all have created_at, updated_at, owner FK where relevant)
+- Company: name, industry, size, website, city
+- Contact: first/last name, email (unique), phone, company FK, tags, segment (from ML),
+  churn_risk (float, from ML)
+- Lead: contact FK, source (web/referral/ads/event/cold), status
+  (new/contacted/qualified/unqualified/converted), budget, notes, score (0-100, from ML),
+  score_label (hot/warm/cold), score_explanation (JSON, top SHAP factors), last_contacted_at
+- Deal: title, contact FK, lead FK (nullable), value, stage
+  (new/qualified/proposal/negotiation/won/lost), expected_close_date, probability, position
+- Activity: type (call/email/meeting/note), subject, body, contact FK, deal FK nullable,
+  summary (AI), action_items (JSON, AI), occurred_at
+- Task: title, due_date, status, priority, assigned_to, related contact/deal,
+  created_by_agent (bool)
+- Ticket: subject, description, contact FK, status, priority (auto from ML),
+  sentiment (positive/neutral/negative) + sentiment_score
+- DocumentChunk: source_type, source_id, text, embedding vector(384) [for RAG]
+- AgentRun: goal, status (planning/awaiting_approval/running/done/failed), user FK
+- AgentStep: run FK, order, tool_name, tool_input JSON, tool_output JSON,
+  requires_approval bool, approved bool/null
+- Invoice: number, deal FK, contact FK, items, subtotal, tax (18% GST), total (in rupees,
+  Decimal), status (draft/sent/paid/failed/refunded), razorpay_order_id,
+  razorpay_payment_link_id, payment_link_url, paid_at
+- Payment: invoice FK, razorpay_payment_id, amount, method, status, raw JSON
+- WebhookEvent: event_id (unique, for idempotency), event_type, payload JSON, processed bool
+
+## The 10 features
+1. Contacts, Companies & Leads — CRUD, search, filters, CSV import, activity timeline
+2. Deal Pipeline — drag-and-drop Kanban by stage, tasks & reminders
+3. AI Lead Scoring — classification model predicts conversion probability → score + label +
+   SHAP explanation; auto-rescore on lead update (Celery)
+4. Segmentation & Churn — K-Means on RFM features for segments; churn classifier → churn_risk
+5. Sales Forecasting — regression/time-series on monthly won-deal revenue → next 3 months
+6. Smart Tickets — NLP sentiment (TF-IDF + Logistic Regression) → auto priority
+7. AI Writer — LLM drafts follow-up emails from contact history; summarizes activity
+   notes into summary + action items (structured JSON output)
+8. Ask LeadPilot (RAG) — embed notes/activities/tickets into pgvector; answer questions with
+   citations to source records
+9. Agent — user gives a goal; agent plans, calls tools, pauses for approval on any
+   write action, logs every step
+10. Invoicing & Razorpay — invoice from Won deal → Razorpay Order + Checkout or Payment Link
+    → signature verification → webhook → invoice paid → dashboard revenue updates
+
+## ML rules
+- Every model starts as a Jupyter notebook in backend/ml/notebooks/ showing EDA, cleaning,
+  feature engineering, train/test split, cross-validation, at least 2 models compared,
+  metrics, and the final choice with reasoning.
+- Production code lives in backend/ml/pipelines/ as sklearn Pipelines (preprocessing +
+  model), saved with joblib to backend/ml/models/ with a metrics JSON next to it.
+- Train on public datasets first (Kaggle: X Education Lead Scoring, Telco Customer Churn,
+  Online Retail), then map to our CRM fields via a feature-mapping function.
+- Handle class imbalance (class_weight or SMOTE) and report precision, recall, F1, ROC-AUC,
+  confusion matrix (classification); MAE/RMSE/R2 (regression); silhouette score (clustering).
+- Expose: POST /api/ml/score-lead/<id>/, GET /api/ml/metrics/, POST /api/ml/retrain/ (Admin).
+
+## GenAI & Agent rules
+- All LLM calls go through genai/llm.py (one function: chat(messages, tools=None,
+  json_schema=None)). API keys only from env vars. Add timeouts, retries, and token logging.
+- Prompts live as files in genai/prompts/. Ask for JSON output where structure is needed
+  and validate it with Pydantic.
+- RAG: chunk (~500 chars, 50 overlap), embed, cosine search top-5 filtered by owner, answer
+  ONLY from retrieved context, return citations [{type, id, snippet}]; say "I don't know"
+  if context is insufficient.
+- Agent tools (each a Python function with a JSON schema): search_leads, get_contact_history,
+  draft_email, create_task, update_deal_stage, create_invoice, create_payment_link,
+  ask_crm (RAG). Read tools run automatically; WRITE tools require user approval.
+  Max 10 steps per run. Log every step to AgentStep. Never let the agent send money or
+  delete data.
+
+## Razorpay rules
+- TEST MODE keys only, from env: RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET.
+- Key Secret NEVER goes to the frontend. Frontend only receives key_id + order_id.
+- Amounts sent to Razorpay in paise (rupees x 100), stored in DB as Decimal rupees.
+- Flow: create order on backend → Checkout.js on frontend → POST payment ids + signature to
+  backend → verify with client.utility.verify_payment_signature → mark "processing".
+  The webhook (payment.captured / payment_link.paid / payment.failed) is the source of truth:
+  verify X-Razorpay-Signature, store in WebhookEvent, skip duplicates (idempotency), then mark
+  invoice paid, deal won, and create an Activity.
+- Also support Payment Links (send to customer by email) and refunds (Admin only).
+
+## Frontend pages
+Login, Dashboard, Contacts (list + detail with timeline), Companies, Leads (with score
+badges + "why" popover), Pipeline (Kanban), Tasks, Tickets, Ask LeadPilot (chat UI with
+citations), Agent (goal input, live step list, Approve/Reject buttons), Invoices (list,
+detail, Pay Now), ML Insights (metrics, confusion matrix, segments chart, forecast chart),
+Settings. Responsive, clean SaaS look, dark mode toggle, loading and empty states, toast errors.
+
+## Code quality
+- Type hints, docstrings on services, business logic in services.py (not in views).
+- Serializer validation, pagination, filtering, consistent error format.
+- Seed command: python manage.py seed_demo (Faker: 50 companies, 300 contacts, 400 leads,
+  150 deals, 500 activities, 80 tickets).
+- Write tests for every service; aim for 70%+ backend coverage.
+- Swagger at /api/docs/.
+- Never hardcode secrets. Provide .env.example.
