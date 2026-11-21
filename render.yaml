@@ -1,0 +1,74 @@
+# Render Blueprint: API + Celery worker (with Beat) + Postgres (pgvector) + Redis.
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. See docs/DEPLOY.md.
+databases:
+  - name: leadpilot-db
+    plan: basic-256mb
+    databaseName: leadpilot
+    user: leadpilot
+
+services:
+  - type: keyvalue
+    name: leadpilot-redis
+    plan: free
+    ipAllowList: [] # only reachable from this account's services
+
+  - type: web
+    name: leadpilot-api
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: >-
+      python manage.py migrate --noinput &&
+      gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    healthCheckPath: /api/health/
+    envVars: &shared_env
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: leadpilot-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: leadpilot-redis
+          property: connectionString
+      - key: DJANGO_ALLOWED_HOSTS
+        value: .onrender.com
+      # Set these to your Vercel URL, e.g. https://leadpilot.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      # GenAI: leave empty for offline mode, or add a key.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # The real embedding model needs ~1 GB RAM; "hash" keeps small instances working.
+      - key: EMBEDDINGS_BACKEND
+        value: hash
+      # Razorpay TEST keys only.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+
+  - type: worker
+    name: leadpilot-worker
+    runtime: python
+    rootDir: backend
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    # One process runs tasks and the Beat scheduler (-B) to keep costs down.
+    startCommand: celery -A config worker -B --loglevel=info --concurrency=2
+    envVars: *shared_env

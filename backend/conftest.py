@@ -1,12 +1,21 @@
 """Shared pytest fixtures."""
 
 import pytest
+from django.core.cache import cache
 from rest_framework.test import APIClient
 
 from accounts.models import User
 from crm.models import Company, Contact, Lead
 
 PASSWORD = "Str0ng-pass!"
+
+
+@pytest.fixture(autouse=True)
+def _fresh_cache():
+    """Throttle counters and cached summaries must not leak between tests."""
+    cache.clear()
+    yield
+    cache.clear()
 
 
 def make_user(username: str, role: str) -> User:

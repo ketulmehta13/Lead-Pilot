@@ -25,6 +25,8 @@ class AgentRunViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
     allowed_roles = ("sales",)
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):  # schema generation
+            return AgentRun.objects.none()
         runs = AgentRun.objects.prefetch_related("steps")
         return runs if self.request.user.is_admin else runs.filter(user=self.request.user)
 

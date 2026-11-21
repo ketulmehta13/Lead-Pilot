@@ -1,7 +1,9 @@
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, mixins, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
@@ -15,6 +17,9 @@ class LoginView(TokenObtainPairView):
     """POST username + password → access + refresh tokens and the user."""
 
     serializer_class = LoginSerializer
+    # Slow down password guessing: LOGIN_RATE_LIMIT per IP (default 10/min).
+    throttle_scope = "login"
+    throttle_classes = [ScopedRateThrottle]
 
 
 class MeView(APIView):
@@ -22,6 +27,7 @@ class MeView(APIView):
 
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(responses=UserSerializer)
     def get(self, request: Request) -> Response:
         return Response(UserSerializer(request.user).data)
 

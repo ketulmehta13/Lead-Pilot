@@ -55,6 +55,7 @@ INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # serves /static (admin, docs) in prod
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -124,7 +125,10 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "common.exceptions.api_exception_handler",
     # Scoped throttles are opt-in per view (e.g. genai.views.GenAIThrottle).
-    "DEFAULT_THROTTLE_RATES": {"genai": os.environ.get("GENAI_RATE_LIMIT", "20/min")},
+    "DEFAULT_THROTTLE_RATES": {
+        "genai": os.environ.get("GENAI_RATE_LIMIT", "20/min"),
+        "login": os.environ.get("LOGIN_RATE_LIMIT", "10/min"),
+    },
 }
 
 SIMPLE_JWT = {
@@ -139,6 +143,18 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "AI-powered CRM for small businesses.",
     "VERSION": "0.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Distinct names for the many "status"/"stage"/"role" choice sets.
+    "ENUM_NAME_OVERRIDES": {
+        "UserRoleEnum": "accounts.models.User.Role",
+        "DealStageEnum": "crm.models.Deal.Stage",
+        "LeadStatusEnum": "crm.models.Lead.Status",
+        "TaskStatusEnum": "crm.models.Task.Status",
+        "TicketStatusEnum": "support.models.Ticket.Status",
+        "InvoiceStatusEnum": "billing.models.Invoice.Status",
+        "PaymentStatusEnum": "billing.models.Payment.Status",
+        "AgentRunStatusEnum": "agent.models.AgentRun.Status",
+        "AgentStepStatusEnum": "agent.models.AgentStep.Status",
+    },
 }
 
 # --- CORS ---

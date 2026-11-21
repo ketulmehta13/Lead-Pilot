@@ -14,7 +14,7 @@ how to run it, and how to test it.
 - [x] Phase 5 — RAG: Ask LeadPilot
 - [x] Phase 6 — Agent
 - [x] Phase 7 — Invoicing & Razorpay
-- [ ] Phase 8 — Testing, polish & deploy
+- [x] Phase 8 — Testing, polish & deploy (deploy configs ready; live deploy needs the owner's accounts)
 
 Local note: when `DATABASE_URL` is unset the backend falls back to SQLite so it can run
 without Docker. Docker Compose (Postgres + pgvector) is the real target; pgvector features
@@ -72,6 +72,11 @@ Decisions made while building (keep consistent):
   webhook HMAC with compare_digest); billing.services holds the flow; mark_paid is idempotent
   and re-reads the deal. Invoice statuses add "processing" (signature verified, awaiting
   webhook). Dashboard: revenue_this_month = won deals; collected_this_month = paid invoices.
+- Quality: common/tests/test_security.py sweeps every OpenAPI operation for auth (PUBLIC
+  allowlist) + role matrix; login throttled (LOGIN_RATE_LIMIT). E2E: frontend/e2e (Playwright,
+  config.settings.e2e: SQLite e2e.sqlite3, mock LLM, hash embeddings, webhook secret
+  e2e_webhook_secret; ports 8010/5180). `npm run screenshots` refreshes docs/screenshots.
+  Deploy: render.yaml + frontend/vercel.json + docs/DEPLOY.md.
 - Frontend: features/<module>/ pages + modals (pages are lazy-loaded), shared UI in components/ui, schemas tested in
   lib/schemas.ts, API errors via api/errors.parseApiError, JWT refresh in api/client.ts.
 

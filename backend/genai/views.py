@@ -235,6 +235,8 @@ class ConversationViewSet(
     allowed_roles = ("sales", "support")
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):  # schema generation
+            return Conversation.objects.none()
         return Conversation.objects.filter(user=self.request.user).prefetch_related("messages")
 
     def get_serializer_class(self):

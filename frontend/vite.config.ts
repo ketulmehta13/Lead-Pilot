@@ -22,5 +22,6 @@ export default defineConfig({
     // Lazy page chunks (charts, drag-and-drop) can take seconds to load on a busy machine.
     testTimeout: 20_000,
     include: ['src/**/*.test.{ts,tsx}'],
+    exclude: ['e2e/**', 'node_modules/**'],
   },
 });

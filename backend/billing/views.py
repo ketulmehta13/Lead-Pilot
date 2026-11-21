@@ -70,6 +70,8 @@ class InvoiceViewSet(
     ordering_fields = ["created_at", "total", "paid_at", "number"]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):  # schema generation
+            return Invoice.objects.none()
         user = self.request.user
         invoices = invoice_queryset()
         return invoices if user.is_admin else invoices.filter(owner=user)

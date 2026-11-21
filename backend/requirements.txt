@@ -10,6 +10,7 @@ psycopg[binary]>=3.2
 celery[redis]>=5.4,<6
 redis>=5.0
 gunicorn>=23.0
+whitenoise>=6.7
 Faker>=30.0
 # ML (Phase 3)
 pandas>=2.2
