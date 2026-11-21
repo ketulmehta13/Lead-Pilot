@@ -46,6 +46,9 @@ Every demo user has the password `LeadPilot@123`:
 | `POST /api/ml/score-lead/<id>/`            | Score one lead now (score, label, SHAP factors)  |
 | `GET /api/ml/metrics/` · `forecast/` · `segments/` | Model metrics, revenue forecast, segments |
 | `POST /api/ml/retrain/` · `rescore-all/`   | Admin only                                       |
+| `POST /api/genai/draft-email/`             | `{contact_id, goal, tone}` → `{subject, body}`   |
+| `POST /api/genai/summarize-activity/`      | `{activity_id}` → summary, action items, sentiment |
+| `POST /api/genai/action-items-to-tasks/`   | `{activity_id, items: [index…]}` → tasks         |
 
 Full, interactive docs: http://localhost:8000/api/docs/
 
@@ -136,6 +139,21 @@ python manage.py ml_train              # train all (or: ml_train lead_score chur
 python ml/notebooks/run_notebooks.py   # execute every notebook top to bottom
 ```
 
+## Generative AI
+
+All LLM calls go through one wrapper, `backend/genai/llm.py` (`chat(messages, tools=None,
+json_schema=None)`), with timeouts, retries with backoff and a token-usage log (`LLMCall`).
+Providers: **Groq** (default, `GROQ_API_KEY`), **Claude** via the official Anthropic SDK
+(`ANTHROPIC_API_KEY`, model `claude-opus-5-5`), OpenAI, or an offline mock that returns
+placeholders when no key is set. Prompts are text files in `backend/genai/prompts/`; JSON
+output is validated with Pydantic and retried once before failing with a clean 502.
+CRM text is fenced as untrusted data, so notes saying "ignore previous instructions" are
+treated as data (tested).
+
+- **Draft with AI** (contact page): follow-up email from the last 10 activities + deals.
+- **Summarize** (long activities): summary, sentiment and action items → tasks.
+- 20 AI requests per minute per user (`GENAI_RATE_LIMIT`).
+
 ## Tests and linting
 
 ```bash
@@ -163,7 +181,7 @@ frontend/  src/ api/ components/ hooks/ layouts/ pages/ routes/
 - [x] Phase 1: Auth + core CRM
 - [x] Phase 2: Pipeline, tasks & dashboard
 - [x] Phase 3: ML models
-- [ ] Phase 4: GenAI writer & summarizer
+- [x] Phase 4: GenAI writer & summarizer
 - [ ] Phase 5: RAG (Ask LeadPilot)
 - [ ] Phase 6: Agent
 - [ ] Phase 7: Invoicing & Razorpay

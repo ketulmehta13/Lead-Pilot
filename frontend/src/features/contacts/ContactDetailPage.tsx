@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Building2, Mail, Pencil, Phone, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building2, Mail, Pencil, Phone, Sparkles, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { activitiesApi, contactsApi, leadsApi, tasksApi } from '../../api/crm';
@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { ChurnChip, SegmentChip } from '../../components/ml/CustomerChips';
 import { ScoreBadge } from '../../components/ml/ScoreBadge';
+import { DraftEmailModal } from '../genai/DraftEmailModal';
 import { ActivityTimeline } from './ActivityTimeline';
 import { ContactFormModal } from './ContactFormModal';
 import { LogActivityForm } from './LogActivityForm';
@@ -33,6 +34,7 @@ export function ContactDetailPage() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
   const contact = useQuery({
     queryKey: [contactsApi.key, 'detail', id],
@@ -146,6 +148,9 @@ export function ContactDetailPage() {
         </div>
         {canEdit && (
           <div className="flex gap-2">
+            <Button onClick={() => setDrafting(true)}>
+              <Sparkles className="size-4" /> Draft with AI
+            </Button>
             <Button variant="secondary" onClick={() => setEditing(true)}>
               <Pencil className="size-4" /> Edit
             </Button>
@@ -169,7 +174,7 @@ export function ContactDetailPage() {
               {activities.isLoading ? (
                 <Spinner />
               ) : (
-                <ActivityTimeline activities={activities.data?.results ?? []} />
+                <ActivityTimeline activities={activities.data?.results ?? []} canSummarize />
               )}
             </div>
           </div>
@@ -225,6 +230,7 @@ export function ContactDetailPage() {
       )}
 
       <ContactFormModal open={editing} contact={c} onClose={() => setEditing(false)} />
+      {drafting && <DraftEmailModal contact={c} onClose={() => setDrafting(false)} />}
       <ConfirmDialog
         open={deleting}
         title="Delete contact?"

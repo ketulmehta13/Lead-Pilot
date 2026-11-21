@@ -1,6 +1,7 @@
 import { Calendar, Mail, Phone, StickyNote, type LucideIcon } from 'lucide-react';
 import { formatDateTime, timeAgo } from '../../lib/format';
 import type { Activity, ActivityType } from '../../types';
+import { ActivitySummary } from '../genai/ActivitySummary';
 
 const ICONS: Record<ActivityType, LucideIcon> = {
   call: Phone,
@@ -15,7 +16,13 @@ const TONES: Record<ActivityType, string> = {
   note: 'bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300',
 };
 
-export function ActivityTimeline({ activities }: { activities: Activity[] }) {
+export function ActivityTimeline({
+  activities,
+  canSummarize = false,
+}: {
+  activities: Activity[];
+  canSummarize?: boolean;
+}) {
   if (activities.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-slate-300 px-4 py-10 text-center text-sm text-slate-500 dark:border-slate-700">
@@ -51,6 +58,7 @@ export function ActivityTimeline({ activities }: { activities: Activity[] }) {
                   {a.body}
                 </p>
               )}
+              {canSummarize && <ActivitySummary activity={a} />}
             </div>
           </li>
         );

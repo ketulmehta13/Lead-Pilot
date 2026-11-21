@@ -123,6 +123,8 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 20,
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "common.exceptions.api_exception_handler",
+    # Scoped throttles are opt-in per view (e.g. genai.views.GenAIThrottle).
+    "DEFAULT_THROTTLE_RATES": {"genai": os.environ.get("GENAI_RATE_LIMIT", "20/min")},
 }
 
 SIMPLE_JWT = {

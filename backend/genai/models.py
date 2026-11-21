@@ -1,1 +1,39 @@
-"""Models for the genai app. Filled in during its build phase (see CLAUDE.md)."""
+"""GenAI records: LLM usage log (Phase 4)."""
+
+from django.conf import settings
+from django.db import models
+
+
+class LLMCall(models.Model):
+    """One request to an LLM provider: who, why, which model, tokens, latency, outcome."""
+
+    class Status(models.TextChoices):
+        OK = "ok", "OK"
+        ERROR = "error", "Error"
+        INVALID_OUTPUT = "invalid_output", "Invalid output"
+        REFUSED = "refused", "Refused"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    purpose = models.CharField(max_length=40)
+    provider = models.CharField(max_length=20)
+    model = models.CharField(max_length=80)
+    prompt_tokens = models.PositiveIntegerField(default=0)
+    completion_tokens = models.PositiveIntegerField(default=0)
+    latency_ms = models.PositiveIntegerField(default=0)
+    attempts = models.PositiveSmallIntegerField(default=1)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.OK)
+    error = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["purpose", "created_at"])]
+
+    def __str__(self) -> str:
+        return f"{self.provider}:{self.model} {self.purpose} ({self.status})"
+
+    @property
+    def total_tokens(self) -> int:
+        return self.prompt_tokens + self.completion_tokens

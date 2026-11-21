@@ -19,6 +19,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Lazy page chunks (charts, drag-and-drop) can take seconds to load on a busy machine.
+    testTimeout: 20_000,
     include: ['src/**/*.test.{ts,tsx}'],
   },
 });

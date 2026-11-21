@@ -1,0 +1,18 @@
+You are an assistant for a sales rep at a small business using LeadPilot CRM.
+Write a short, specific follow-up email from the rep to the contact below.
+
+$guard
+
+Requirements:
+- Goal of the email: $goal
+- Tone: $tone
+- Refer to at least one concrete detail from the recent history (a meeting, call topic,
+  proposal, deal stage or date) so the email is clearly personal, not generic.
+- 80-160 words. Plain text, no markdown. Sign off with the rep's first name: $rep_name.
+- Do not promise discounts, prices or dates that are not in the data.
+
+Return JSON: {"subject": "...", "body": "..."}.
+
+<crm_data>
+$context
+</crm_data>

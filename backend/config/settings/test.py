@@ -14,3 +14,7 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BROKER_URL = "memory://"
 CELERY_RESULT_BACKEND = "cache+memory://"
+
+# Never call a real LLM from tests, even if a developer has API keys exported.
+os.environ["LLM_PROVIDER"] = "mock"
+os.environ["LLM_MAX_RETRIES"] = "1"
