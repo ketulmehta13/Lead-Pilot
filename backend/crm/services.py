@@ -5,17 +5,17 @@ from __future__ import annotations
 import csv
 import io
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import IO, Any
 
 from django.db import transaction
-from django.db.models import Max, Q, QuerySet
+from django.db.models import F, Max, Q, QuerySet
 from django.utils import timezone
 
 from accounts.models import User
 
-from .models import Activity, Company, Contact, Deal, Lead
+from .models import Activity, Company, Contact, Deal, Lead, Task
 from .serializers import ContactImportRowSerializer
 
 # Activities that count as "we reached out to this contact".
@@ -319,3 +319,58 @@ def board_columns(deals: QuerySet[Deal]) -> list[dict[str, Any]]:
         }
         for stage, items in by_stage.items()
     ]
+
+
+# --- Selectors / helpers used by the agent ---------------------------------------------------
+
+
+def visible_leads(user: User) -> QuerySet[Lead]:
+    leads = Lead.objects.select_related("contact", "contact__company")
+    return leads if user.is_admin else leads.filter(owner=user)
+
+
+def search_leads(
+    user: User,
+    *,
+    label: str | None = None,
+    status: str | None = None,
+    not_contacted_days: int | None = None,
+    min_score: int | None = None,
+    limit: int = 10,
+) -> list[Lead]:
+    """Leads the user can see, filtered like the Leads page, best score first."""
+    leads = visible_leads(user).exclude(status__in=[Lead.Status.CONVERTED, Lead.Status.UNQUALIFIED])
+    if label:
+        leads = leads.filter(score_label=label)
+    if status:
+        leads = leads.filter(status=status)
+    if min_score is not None:
+        leads = leads.filter(score__gte=min_score)
+    if not_contacted_days is not None:
+        cutoff = timezone.now() - timedelta(days=not_contacted_days)
+        leads = leads.filter(Q(last_contacted_at__lt=cutoff) | Q(last_contacted_at__isnull=True))
+    return list(leads.order_by(F("score").desc(nulls_last=True), "-created_at")[: max(1, limit)])
+
+
+def create_task(
+    *,
+    owner: User,
+    title: str,
+    contact: Contact | None = None,
+    deal: Deal | None = None,
+    due_date: date | None = None,
+    priority: str = Task.Priority.MEDIUM,
+    description: str = "",
+    created_by_agent: bool = False,
+) -> Task:
+    return Task.objects.create(
+        owner=owner,
+        assigned_to=owner,
+        title=title[:200],
+        contact=contact,
+        deal=deal,
+        due_date=due_date,
+        priority=priority,
+        description=description,
+        created_by_agent=created_by_agent,
+    )

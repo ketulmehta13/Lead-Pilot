@@ -1,0 +1,5 @@
+# Local embedding model for Ask LeadPilot (RAG). Kept separate because PyTorch is large;
+# tests/CI use EMBEDDINGS_BACKEND=hash and don't need it. CPU-only wheels:
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.3
+sentence-transformers>=3.0

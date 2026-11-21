@@ -6,8 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install -r requirements-dev.txt
+COPY requirements.txt requirements-dev.txt requirements-embeddings.txt ./
+RUN pip install -r requirements-dev.txt -r requirements-embeddings.txt
+# Bake the embedding model into the image so the first question doesn't download 90 MB.
+RUN python -c "from sentence_transformers import SentenceTransformer as S; S('sentence-transformers/all-MiniLM-L6-v2')"
 
 COPY . .
 

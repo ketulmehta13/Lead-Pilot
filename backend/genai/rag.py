@@ -341,12 +341,28 @@ def citation(chunk: DocumentChunk, similarity: float) -> dict[str, Any]:
 
 def answer(question: str, user: User, conversation: Conversation | None = None) -> dict[str, Any]:
     """Answer from the user's CRM data with citations, and store the exchange."""
-    from .services import structured_chat
 
     if conversation is None:
         conversation = Conversation.objects.create(user=user, title=question.strip()[:200])
     history = list(conversation.messages.order_by("-created_at", "-id")[:HISTORY_TURNS])[::-1]
     ConversationMessage.objects.create(conversation=conversation, role="user", content=question)
+
+    text, citations = grounded_answer(
+        question, user, [{"role": m.role, "content": m.content} for m in history]
+    )
+
+    ConversationMessage.objects.create(
+        conversation=conversation, role="assistant", content=text, citations=citations
+    )
+    conversation.save(update_fields=["updated_at"])
+    return {"conversation_id": conversation.id, "answer": text, "citations": citations}
+
+
+def grounded_answer(
+    question: str, user: User, history: list[dict[str, str]] | None = None
+) -> tuple[str, list[dict[str, Any]]]:
+    """Retrieve + answer without storing anything (used by the chat and by the agent)."""
+    from .services import structured_chat
 
     hits, filtered = search(question, user)
     # Name/date filters already pin the right records, so accept weaker semantic matches.
@@ -372,20 +388,13 @@ def answer(question: str, user: User, conversation: Conversation | None = None) 
             role=user.get_role_display(),
             sources=fence(sources),
         )
-        messages = [{"role": "system", "content": system}]
-        messages += [{"role": m.role, "content": m.content} for m in history]
+        messages = [{"role": "system", "content": system}, *(history or [])]
         messages.append({"role": "user", "content": question})
         result = structured_chat(messages, RagAnswer, purpose="rag_answer", user=user)
         used = sorted({n for n in result.sources if 1 <= n <= len(hits)})
         text = result.answer.strip()
-        citations = (
-            [] if text.lower().startswith("i don't know") else [citation(hits[n - 1].chunk,
-                                                                          hits[n - 1].similarity)
-                                                                 for n in used]  # fmt: skip
-        )
-
-    ConversationMessage.objects.create(
-        conversation=conversation, role="assistant", content=text, citations=citations
-    )
-    conversation.save(update_fields=["updated_at"])
-    return {"conversation_id": conversation.id, "answer": text, "citations": citations}
+        if text.lower().startswith("i don't know"):
+            citations = []
+        else:
+            citations = [citation(hits[n - 1].chunk, hits[n - 1].similarity) for n in used]
+    return text, citations
