@@ -6,8 +6,11 @@ export const AUTH_LOGOUT_EVENT = 'leadpilot:logout';
 
 const baseURL = import.meta.env.VITE_API_URL ?? '';
 
-/** Shared Axios instance. In dev, /api is proxied by Vite to Django. */
-export const api = axios.create({ baseURL, timeout: 15_000 });
+/**
+ * Shared Axios instance. In dev, /api is proxied by Vite to Django.
+ * 60 s timeout: a free-tier API host can take ~50 s to wake from sleep.
+ */
+export const api = axios.create({ baseURL, timeout: 60_000 });
 
 api.interceptors.request.use((config) => {
   const access = tokens.access;

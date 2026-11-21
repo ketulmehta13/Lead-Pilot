@@ -1,58 +1,78 @@
-# Deploying LeadPilot
+# Deploying LeadPilot (free plans)
 
-Backend, worker, Postgres and Redis go on **Render** (Blueprint in `render.yaml`); the React
-app goes on **Vercel**. Total time: about 20 minutes.
+The backend (API + Postgres with pgvector + Redis) goes on **Render** using the Blueprint in
+`render.yaml`; the React app goes on **Vercel**. Both are free. Total time: about 30 minutes.
+
+**Free-plan trade-offs** (all handled in `render.yaml`):
+
+| Limitation | What happens |
+| --- | --- |
+| No background worker | `CELERY_TASK_ALWAYS_EAGER=true`: scoring, indexing and agent runs happen inside the API. Scheduled jobs (08:00 reminders, nightly rescoring) don't run. |
+| API sleeps after ~15 min idle | The first visit takes ~1 minute to wake it; the frontend waits up to 60 s. |
+| Free Postgres expires after 30 days | Render emails you; delete and recreate `leadpilot-db` from the Blueprint, then redeploy. Demo data reloads on its own. |
+| No Shell | `seed_demo --if-empty` runs on every start and loads demo data only when the database is empty. |
+| 512 MB RAM | `EMBEDDINGS_BACKEND=hash` (Ask LeadPilot works, retrieval is less precise than with the MiniLM model). |
 
 ## 1. Backend on Render
 
-1. Push the repo to GitHub (already done if you're reading this there).
-2. Render dashboard → **New → Blueprint** → select the repo. Render reads `render.yaml` and
-   proposes: `leadpilot-db` (Postgres), `leadpilot-redis` (Key Value), `leadpilot-api` (web),
-   `leadpilot-worker` (Celery worker + Beat).
-3. Fill the variables marked *sync: false* (you can leave AI and Razorpay empty to start):
-   - `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL`: your Vercel URL (step 2),
-     e.g. `https://leadpilot.vercel.app`. You can set them after the frontend exists.
-   - `GROQ_API_KEY` (or `ANTHROPIC_API_KEY`) for real AI; empty = offline placeholders.
-   - `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` / `RAZORPAY_WEBHOOK_SECRET`: **test** keys.
-4. **Apply.** The first deploy runs migrations (which also enable the `vector` extension).
-5. Load demo data once: `leadpilot-api` → **Shell** →
-   ```bash
-   python manage.py seed_demo --flush
-   ```
-6. Check `https://leadpilot-api.onrender.com/api/health/` → `{"status":"ok","database":"ok"}`
-   and `/api/docs/` for Swagger.
-
-**Notes**
-- `EMBEDDINGS_BACKEND=hash` keeps the API inside a small instance. For the real
-  `all-MiniLM-L6-v2` model, use an instance with ≥1 GB RAM, add
-  `pip install -r requirements-embeddings.txt` to the build command, set
-  `EMBEDDINGS_BACKEND=sentence-transformers`, then run `python manage.py reindex_all`.
-- Render workers are a paid instance type. Without the worker the app still works, but
-  background jobs (nightly rescoring, task reminders) won't run; set Celery to eager mode
-  only for demos.
+1. Sign up at https://render.com with **GitHub** and allow access to the `Lead-Pilot` repo.
+2. **New → Blueprint** → pick the repo → branch `main`. Render reads `render.yaml` and lists
+   `leadpilot-db`, `leadpilot-redis` and `leadpilot-api`.
+3. It asks for the variables marked `sync: false`:
+   - `GROQ_API_KEY`: your Groq key (for real AI output).
+   - `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL`: put a placeholder such as
+     `https://example.com` for now; you'll replace them after step 2.
+   - `RAZORPAY_*`: leave empty to skip payments.
+4. **Apply**. The first deploy takes ~10 minutes: it installs packages, runs migrations
+   (which enable the `vector` extension), loads demo data, then starts gunicorn.
+5. Open `https://leadpilot-api.onrender.com/api/health/` (use your service's URL from the
+   dashboard). Expected: `{"status": "ok", "database": "ok"}`. Swagger: `/api/docs/`.
 
 ## 2. Frontend on Vercel
 
-1. Vercel → **Add New → Project** → import the repo → **Root Directory: `frontend`**.
-2. Environment variable: `VITE_API_URL = https://leadpilot-api.onrender.com`
-3. Deploy. `vercel.json` rewrites every path to `index.html` (client-side routing).
-4. Copy the Vercel URL into the Render variables `CORS_ALLOWED_ORIGINS`,
-   `CSRF_TRUSTED_ORIGINS` and `FRONTEND_URL`, then redeploy the API.
+1. Sign up at https://vercel.com with **GitHub**.
+2. **Add New → Project** → import `Lead-Pilot`.
+3. **Root Directory: `frontend`** (click Edit next to it). Framework: Vite (auto-detected).
+4. **Environment Variables**: `VITE_API_URL` = your Render API URL, e.g.
+   `https://leadpilot-api.onrender.com` (no trailing slash, no `/api`).
+5. **Deploy**. Copy the URL Vercel gives you, e.g. `https://lead-pilot.vercel.app`.
 
-## 3. Razorpay webhook (production)
+## 3. Connect the two
 
-Razorpay (Test Mode) → Settings → Webhooks → add
-`https://leadpilot-api.onrender.com/api/billing/webhook/` with events `payment.captured`,
-`payment.failed`, `payment_link.paid`, and the same secret as `RAZORPAY_WEBHOOK_SECRET`.
+In Render → `leadpilot-api` → **Environment**, set all three to your Vercel URL (no trailing
+slash) and **Save, rebuild and deploy**:
+
+- `CORS_ALLOWED_ORIGINS`
+- `CSRF_TRUSTED_ORIGINS`
+- `FRONTEND_URL`
 
 ## 4. Smoke test
 
-Log in with `admin` / `LeadPilot@123` (change these passwords for any public demo:
-`python manage.py changepassword admin`), open the dashboard, drag a deal to Won, create an
-invoice and pay it with test card `4111 1111 1111 1111`.
+Open the Vercel URL, wait for the API to wake, and log in with `admin` / `LeadPilot@123`.
+Check the dashboard, drag a deal on the pipeline, draft an email on a contact, ask a question in
+Ask LeadPilot and run the agent.
+
+**Before sharing the link publicly**, change the demo passwords. Without a Shell, do it via
+`https://<your-api>.onrender.com/admin/` → Users → each user → "change password".
+
+## Troubleshooting
+
+| Symptom | Fix |
+| --- | --- |
+| Login says "Network Error" / CORS error in the browser console | `CORS_ALLOWED_ORIGINS` doesn't exactly match the Vercel URL (https, no trailing slash), or the API wasn't redeployed after changing it |
+| Login hangs ~1 min the first time | The free API was asleep; that's normal |
+| Page refresh on `/contacts` gives 404 on Vercel | Root Directory isn't `frontend`, so `vercel.json` wasn't used |
+| Deploy fails "out of memory" | Free 512 MB limit; check that `EMBEDDINGS_BACKEND=hash` |
+| AI shows "offline draft" text | `GROQ_API_KEY` not set on Render; add it and redeploy |
+
+## Razorpay webhook (optional, later)
+
+Razorpay (Test Mode) → Settings → Webhooks → add
+`https://<your-api>.onrender.com/api/billing/webhook/` with events `payment.captured`,
+`payment.failed`, `payment_link.paid`, and the same secret as `RAZORPAY_WEBHOOK_SECRET`.
 
 ## Production settings at a glance (`config/settings/prod.py`)
 
-`DEBUG = False`; `DJANGO_SECRET_KEY` required; HTTPS redirect, secure cookies, HSTS
-(subdomains/preload opt-in via env); WhiteNoise for static files; Redis cache; CORS/CSRF from
-env; login and AI endpoints rate-limited; Razorpay live keys refused.
+`DEBUG = False`; `DJANGO_SECRET_KEY` generated by Render; HTTPS redirect, secure cookies, HSTS;
+WhiteNoise for static files (admin, Swagger); Redis cache; CORS/CSRF from env; login and AI
+endpoints rate-limited; Razorpay live keys refused.

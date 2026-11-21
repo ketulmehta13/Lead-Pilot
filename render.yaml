@@ -1,8 +1,15 @@
-# Render Blueprint: API + Celery worker (with Beat) + Postgres (pgvector) + Redis.
-# Deploy: Render dashboard -> New -> Blueprint -> pick this repo. See docs/DEPLOY.md.
+# Render Blueprint (FREE plans): API + Postgres (pgvector) + Redis. See docs/DEPLOY.md.
+# Deploy: Render dashboard -> New -> Blueprint -> pick this repo.
+#
+# Free-plan trade-offs:
+# - No Celery worker (workers are paid): CELERY_TASK_ALWAYS_EAGER runs tasks inside the API.
+#   Scheduled jobs (08:00 reminders, nightly rescoring) don't run; user-triggered ones do.
+# - The API sleeps after ~15 min idle; the first request then takes ~1 min to wake it.
+# - Free Postgres expires after 30 days (Render emails you); recreate it and redeploy.
+# - No Shell on free: demo data is loaded on start when the database is empty.
 databases:
   - name: leadpilot-db
-    plan: basic-256mb
+    plan: free
     databaseName: leadpilot
     user: leadpilot
 
@@ -16,13 +23,14 @@ services:
     name: leadpilot-api
     runtime: python
     rootDir: backend
-    plan: starter
+    plan: free
     buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
     startCommand: >-
       python manage.py migrate --noinput &&
-      gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+      python manage.py seed_demo --if-empty &&
+      gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
     healthCheckPath: /api/health/
-    envVars: &shared_env
+    envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: DJANGO_SETTINGS_MODULE
@@ -38,6 +46,8 @@ services:
           type: keyvalue
           name: leadpilot-redis
           property: connectionString
+      - key: CELERY_TASK_ALWAYS_EAGER
+        value: "true"
       - key: DJANGO_ALLOWED_HOSTS
         value: .onrender.com
       # Set these to your Vercel URL, e.g. https://leadpilot.vercel.app
@@ -50,25 +60,13 @@ services:
       # GenAI: leave empty for offline mode, or add a key.
       - key: GROQ_API_KEY
         sync: false
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      # The real embedding model needs ~1 GB RAM; "hash" keeps small instances working.
+      # The real embedding model needs ~1 GB RAM; "hash" fits the free 512 MB instance.
       - key: EMBEDDINGS_BACKEND
         value: hash
-      # Razorpay TEST keys only.
+      # Razorpay TEST keys only (optional; leave empty to skip payments).
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
-
-  - type: worker
-    name: leadpilot-worker
-    runtime: python
-    rootDir: backend
-    plan: starter
-    buildCommand: pip install -r requirements.txt
-    # One process runs tasks and the Beat scheduler (-B) to keep costs down.
-    startCommand: celery -A config worker -B --loglevel=info --concurrency=2
-    envVars: *shared_env

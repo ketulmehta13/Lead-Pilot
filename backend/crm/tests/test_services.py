@@ -167,3 +167,13 @@ def test_seed_demo_refuses_to_run_twice_without_flush(db):
         call_command("seed_demo", stdout=io.StringIO())
     call_command("seed_demo", "--flush", stdout=io.StringIO())
     assert Contact.objects.count() == 300
+
+
+def test_seed_demo_if_empty_skips_existing_data(db):
+    """Used on every free-plan start: must never fail or duplicate data."""
+    call_command("seed_demo", "--if-empty", stdout=io.StringIO())
+    assert Contact.objects.count() == 300
+    out = io.StringIO()
+    call_command("seed_demo", "--if-empty", stdout=out)
+    assert "skipping" in out.getvalue()
+    assert Contact.objects.count() == 300

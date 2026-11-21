@@ -167,6 +167,10 @@ CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", REDIS_URL)
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300
+# No worker (e.g. a free hosting plan): run tasks inline in the web process. Beat jobs
+# (reminders, nightly rescoring) then don't run; everything triggered by users still does.
+CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
+CELERY_TASK_EAGER_PROPAGATES = False
 CELERY_BEAT_SCHEDULE = {
     "overdue-task-reminders": {
         "task": "crm.send_overdue_task_reminders",

@@ -213,7 +213,9 @@ describe('auth', () => {
     await user.type(screen.getByLabelText('Username'), 'priya');
     await user.type(screen.getByLabelText('Password'), 'LeadPilot@123');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
-    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'Dashboard' }, { timeout: 15_000 }),
+    ).toBeInTheDocument();
     expect(localStorage.getItem('leadpilot-access')).toBe('a');
   });
 

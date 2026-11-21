@@ -116,8 +116,16 @@ class Command(BaseCommand):
     def add_arguments(self, parser) -> None:
         parser.add_argument("--flush", action="store_true", help="Delete CRM data first.")
         parser.add_argument("--seed", type=int, default=42, help="Random seed.")
+        parser.add_argument(
+            "--if-empty",
+            action="store_true",
+            help="Do nothing if CRM data exists (safe to run on every deploy).",
+        )
 
-    def handle(self, *args, flush: bool, seed: int, **options) -> None:
+    def handle(self, *args, flush: bool, seed: int, if_empty: bool, **options) -> None:
+        if if_empty and Contact.objects.exists():
+            self.stdout.write("CRM data already exists; skipping seed (--if-empty).")
+            return
         if Contact.objects.exists() and not flush:
             raise CommandError("CRM data already exists. Re-run with --flush to replace it.")
 

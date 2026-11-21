@@ -72,6 +72,9 @@ Decisions made while building (keep consistent):
   webhook HMAC with compare_digest); billing.services holds the flow; mark_paid is idempotent
   and re-reads the deal. Invoice statuses add "processing" (signature verified, awaiting
   webhook). Dashboard: revenue_this_month = won deals; collected_this_month = paid invoices.
+- Hosting: free plans (render.yaml): no worker -> CELERY_TASK_ALWAYS_EAGER=true, `seed_demo --if-empty`
+  on start, hash embeddings, API timeout 60 s for cold starts. Groq default model openai/gpt-oss-120b.
+  Dev settings load the root .env (config/settings/dotenv.py).
 - Quality: common/tests/test_security.py sweeps every OpenAPI operation for auth (PUBLIC
   allowlist) + role matrix; login throttled (LOGIN_RATE_LIMIT). E2E: frontend/e2e (Playwright,
   config.settings.e2e: SQLite e2e.sqlite3, mock LLM, hash embeddings, webhook secret
