@@ -1,8 +1,9 @@
 import { LogOut, Menu, X } from 'lucide-react';
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { ApiStatus } from '../components/ApiStatus';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { Spinner } from '../components/ui/Spinner';
 import { useAuth } from '../features/auth/AuthContext';
 import { NAV_ITEMS } from '../routes/nav';
 
@@ -92,7 +93,15 @@ export function AppLayout() {
           <UserMenu />
         </header>
         <main className="mx-auto max-w-7xl p-4 sm:p-6">
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="flex justify-center py-20">
+                <Spinner />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

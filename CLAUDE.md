@@ -8,7 +8,7 @@ how to run it, and how to test it.
 ## Build status
 - [x] Phase 0 — Setup & skeleton
 - [x] Phase 1 — Auth + core CRM
-- [ ] Phase 2 — Pipeline, tasks & dashboard
+- [x] Phase 2 — Pipeline, tasks & dashboard
 - [ ] Phase 3 — ML models
 - [ ] Phase 4 — GenAI writer & summarizer
 - [ ] Phase 5 — RAG: Ask LeadPilot
@@ -31,7 +31,17 @@ Decisions made while building (keep consistent):
   and moves `new` leads to `contacted`. Always create activities through it.
 - Demo users (seed_demo): admin / priya / rahul (sales) / sneha (support), password
   `LeadPilot@123`.
-- Frontend: features/<module>/ pages + modals, shared UI in components/ui, schemas tested in
+- Deals: always go through `crm.services` (`create_deal`, `update_deal`, `move_deal`,
+  `convert_lead`). `move_deal` takes the index *the user sees* and maps it onto the shared
+  column order (reps don't see each other's cards); stage changes set probability/closed_at
+  and log a timeline note. Kanban drag is disabled while a search filter is active.
+- Analytics: `analytics.services.get_summary` caches 60 s per user; signals on Lead/Deal/Task
+  bump a version key so changes show immediately. Revenue = won deals by `closed_at` until
+  Phase 7 switches it to paid invoices.
+- Celery Beat: `crm.send_overdue_task_reminders` daily 08:00 IST (console email in dev).
+- Charts follow the dataviz skill: single-series = palette slot 1 (#2a78d6 / dark #3987e5),
+  no legend, hover tooltip, "Show data" table per chart (features/dashboard/).
+- Frontend: features/<module>/ pages + modals (pages are lazy-loaded), shared UI in components/ui, schemas tested in
   lib/schemas.ts, API errors via api/errors.parseApiError, JWT refresh in api/client.ts.
 
 ## Goal

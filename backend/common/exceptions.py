@@ -34,6 +34,9 @@ def api_exception_handler(exc: Exception, context: dict[str, Any]) -> Response |
     code = _error_code(exc)
     if isinstance(data, dict) and "detail" in data and len(data) == 1:
         message, details = str(data["detail"]), None
+    elif isinstance(data, dict) and set(data) == {"non_field_errors"}:
+        # A single form-level problem: surface it as the message.
+        message, details = str(data["non_field_errors"][0]), data
     else:
         message, details = "Validation failed.", data
 

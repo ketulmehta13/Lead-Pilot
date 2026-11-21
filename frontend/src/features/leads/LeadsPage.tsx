@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { ArrowRightCircle, Kanban, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { leadsApi } from '../../api/crm';
@@ -19,6 +19,7 @@ import {
 } from '../../lib/options';
 import type { Lead } from '../../types';
 import { useAuth } from '../auth/AuthContext';
+import { ConvertLeadModal } from './ConvertLeadModal';
 import { LeadFormModal } from './LeadFormModal';
 
 export function LeadsPage() {
@@ -29,6 +30,7 @@ export function LeadsPage() {
   const [editing, setEditing] = useState<Lead | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Lead | null>(null);
+  const [converting, setConverting] = useState<Lead | null>(null);
 
   const query = useQuery({
     queryKey: [leadsApi.key, list.params],
@@ -125,17 +127,43 @@ export function LeadsPage() {
       header: '',
       className: 'text-right',
       render: (l) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={`Delete lead for ${l.contact_name}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            setDeleting(l);
-          }}
-        >
-          <Trash2 className="size-4 text-rose-500" />
-        </Button>
+        <div className="flex justify-end gap-1">
+          {l.deal ? (
+            <Link
+              to="/pipeline"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+            >
+              <Kanban className="size-4" /> View deal
+            </Link>
+          ) : (
+            l.status !== 'converted' &&
+            l.status !== 'unqualified' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label={`Convert lead for ${l.contact_name} to a deal`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConverting(l);
+                }}
+              >
+                <ArrowRightCircle className="size-4 text-indigo-500" /> Convert
+              </Button>
+            )
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={`Delete lead for ${l.contact_name}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleting(l);
+            }}
+          >
+            <Trash2 className="size-4 text-rose-500" />
+          </Button>
+        </div>
       ),
     },
   ];
@@ -195,6 +223,7 @@ export function LeadsPage() {
           setEditing(null);
         }}
       />
+      {converting && <ConvertLeadModal lead={converting} onClose={() => setConverting(null)} />}
       <ConfirmDialog
         open={deleting !== null}
         title="Delete lead?"

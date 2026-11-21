@@ -76,6 +76,8 @@ export interface Lead extends Owned {
   score_label: ScoreLabel | null;
   score_explanation: unknown;
   last_contacted_at: string | null;
+  /** Deal created when this lead was converted. */
+  deal: number | null;
 }
 
 export type ActivityType = 'call' | 'email' | 'meeting' | 'note';
@@ -111,4 +113,46 @@ export interface ImportResult {
   total_rows: number;
   created: number;
   errors: { row: number; errors: Record<string, string[]> }[];
+}
+
+export type DealStage = 'new' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
+
+export interface Deal extends Owned {
+  title: string;
+  contact: number;
+  contact_name: string;
+  company_name: string | null;
+  lead: number | null;
+  value: string;
+  stage: DealStage;
+  expected_close_date: string | null;
+  probability: number;
+  position: number;
+  closed_at: string | null;
+}
+
+export interface BoardColumn {
+  stage: DealStage;
+  label: string;
+  count: number;
+  total_value: string;
+  deals: Deal[];
+}
+
+export interface DashboardSummary {
+  generated_at: string;
+  totals: {
+    leads: number;
+    open_leads: number;
+    open_deals: number;
+    pipeline_value: string;
+    weighted_pipeline_value: string;
+  };
+  leads_by_source: { source: LeadSource; label: string; count: number }[];
+  deals_by_stage: { stage: DealStage; label: string; count: number; value: string }[];
+  win_rate: number | null;
+  revenue_this_month: string;
+  revenue_trend: { month: string; revenue: string; deals: number }[];
+  tasks_due_today: number;
+  tasks_overdue: number;
 }

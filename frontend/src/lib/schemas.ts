@@ -38,3 +38,33 @@ export const leadSchema = z.object({
     }),
   notes: z.string().max(5000),
 });
+
+const rupees = (required: boolean) =>
+  z
+    .string()
+    .trim()
+    .refine((v) => (required ? v !== '' : true), { message: 'Enter an amount' })
+    .refine((v) => v === '' || (/^\d+(\.\d{1,2})?$/.test(v) && Number(v) <= 9_999_999_999), {
+      message: 'Enter an amount in rupees, e.g. 250000',
+    });
+
+export const dealSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required').max(200),
+  contact: z.string().min(1, 'Choose a contact'),
+  value: rupees(true),
+  stage: z.string().min(1),
+  expected_close_date: z.string(),
+  probability: z
+    .string()
+    .trim()
+    .refine((v) => v === '' || (/^\d+$/.test(v) && Number(v) <= 100), {
+      message: 'Whole number from 0 to 100',
+    }),
+});
+
+export const convertLeadSchema = z.object({
+  title: z.string().trim().max(200),
+  value: rupees(false),
+  stage: z.string().min(1),
+  expected_close_date: z.string(),
+});

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Activity, Company, Contact, Lead, Task
+from .models import Activity, Company, Contact, Deal, Lead, Task
 
 
 @admin.register(Company)
@@ -39,3 +39,11 @@ class TaskAdmin(admin.ModelAdmin):
     list_display = ("title", "status", "priority", "due_date", "assigned_to", "created_by_agent")
     list_filter = ("status", "priority", "created_by_agent")
     search_fields = ("title",)
+
+
+@admin.register(Deal)
+class DealAdmin(admin.ModelAdmin):
+    list_display = ("title", "stage", "value", "probability", "expected_close_date", "owner")
+    list_filter = ("stage",)
+    search_fields = ("title", "contact__first_name", "contact__last_name")
+    list_select_related = ("contact", "owner")

@@ -5,14 +5,17 @@ from __future__ import annotations
 import csv
 import io
 from dataclasses import dataclass, field
+from datetime import date
+from decimal import Decimal
 from typing import IO, Any
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Max, Q, QuerySet
+from django.utils import timezone
 
 from accounts.models import User
 
-from .models import Activity, Company, Contact, Lead
+from .models import Activity, Company, Contact, Deal, Lead
 from .serializers import ContactImportRowSerializer
 
 # Activities that count as "we reached out to this contact".
@@ -151,3 +154,162 @@ def import_contacts_csv(upload: IO[bytes], owner: User) -> ImportResult:
 
     result.errors.sort(key=lambda e: e["row"])
     return result
+
+
+# --- Deals & pipeline ----------------------------------------------------------------------
+
+
+class LeadAlreadyConverted(ValueError):
+    """The lead already has a deal."""
+
+
+def _next_position(stage: str) -> int:
+    """Bottom of a Kanban column."""
+    top = Deal.objects.filter(stage=stage).aggregate(m=Max("position"))["m"]
+    return 0 if top is None else top + 1
+
+
+def _enter_stage(deal: Deal, stage: str) -> None:
+    """Set stage plus the fields that follow from it (probability, closed_at)."""
+    deal.stage = stage
+    deal.probability = Deal.DEFAULT_PROBABILITY[stage]
+    deal.closed_at = timezone.now() if stage in Deal.CLOSED_STAGES else None
+
+
+def _log_stage_change(deal: Deal, old_stage: str, actor: User) -> None:
+    old = Deal.Stage(old_stage).label
+    new = deal.get_stage_display()
+    who = actor.get_full_name() or actor.username
+    log_activity(
+        owner=deal.owner or actor,  # owner keeps it on their contact timeline
+        contact=deal.contact,
+        deal=deal,
+        type=Activity.Type.NOTE,
+        subject=f"Deal moved to {new}",
+        body=f'"{deal.title}" moved from {old} to {new} by {who}.',
+    )
+
+
+def create_deal(*, owner: User, **data: Any) -> Deal:
+    """Create a deal at the bottom of its stage's column."""
+    stage = data.pop("stage", Deal.Stage.NEW)
+    probability = data.pop("probability", None)
+    deal = Deal(owner=owner, **data)
+    _enter_stage(deal, stage)
+    if probability is not None:
+        deal.probability = probability
+    deal.position = _next_position(stage)
+    deal.save()
+    return deal
+
+
+@transaction.atomic
+def update_deal(deal: Deal, *, actor: User, **data: Any) -> Deal:
+    """Edit a deal. A stage change moves it to the bottom of the new column."""
+    new_stage = data.pop("stage", deal.stage)
+    probability = data.pop("probability", None)
+    for field_name, value in data.items():
+        setattr(deal, field_name, value)
+    old_stage = deal.stage
+    if new_stage != old_stage:
+        _enter_stage(deal, new_stage)
+        deal.position = _next_position(new_stage)
+    if probability is not None:
+        deal.probability = probability
+    deal.save()
+    if new_stage != old_stage:
+        _log_stage_change(deal, old_stage, actor)
+    return deal
+
+
+@transaction.atomic
+def move_deal(
+    deal: Deal, *, stage: str, position: int, actor: User, visible: QuerySet[Deal] | None = None
+) -> Deal:
+    """Move a deal to `stage` at `position` and renumber the column, atomically.
+
+    `position` is the index among the deals the actor can *see* in that column (a rep only sees
+    their own). It is translated into the shared column order, so other reps' cards keep their
+    places. Rows are locked with SELECT ... FOR UPDATE (on Postgres) so concurrent drags can't
+    interleave.
+    """
+    deal = Deal.objects.select_for_update().get(pk=deal.pk)
+    column = list(
+        Deal.objects.select_for_update()
+        .filter(stage=stage)
+        .exclude(pk=deal.pk)
+        .order_by("position", "id")
+    )
+    if visible is None:
+        visible_col = column
+    else:
+        visible_ids = set(visible.filter(stage=stage).values_list("id", flat=True))
+        visible_col = [d for d in column if d.id in visible_ids]
+
+    position = max(0, min(position, len(visible_col)))
+    if position < len(visible_col):
+        insert_at = column.index(visible_col[position])
+    elif visible_col:
+        insert_at = column.index(visible_col[-1]) + 1
+    else:
+        insert_at = len(column)
+    column.insert(insert_at, deal)
+
+    old_stage = deal.stage
+    if stage != old_stage:
+        _enter_stage(deal, stage)
+    for index, item in enumerate(column):
+        item.position = index
+    Deal.objects.bulk_update([d for d in column if d.pk != deal.pk], ["position"])
+    deal.save(update_fields=["stage", "probability", "closed_at", "position", "updated_at"])
+
+    if stage != old_stage:
+        _log_stage_change(deal, old_stage, actor)
+    return deal
+
+
+@transaction.atomic
+def convert_lead(
+    lead: Lead,
+    *,
+    title: str = "",
+    value: Decimal | None = None,
+    stage: str = Deal.Stage.QUALIFIED,
+    expected_close_date: date | None = None,
+) -> Deal:
+    """Turn a lead into a deal and mark the lead converted (once only)."""
+    lead = Lead.objects.select_for_update().select_related("contact__company").get(pk=lead.pk)
+    if lead.status == Lead.Status.CONVERTED or Deal.objects.filter(lead=lead).exists():
+        raise LeadAlreadyConverted("This lead has already been converted.")
+
+    contact = lead.contact
+    default_title = f"{contact.company.name if contact.company else contact.full_name} deal"
+    deal = create_deal(
+        owner=lead.owner,
+        contact=contact,
+        lead=lead,
+        title=title or default_title,
+        value=value if value is not None else (lead.budget or 0),
+        stage=stage,
+        expected_close_date=expected_close_date,
+    )
+    lead.status = Lead.Status.CONVERTED
+    lead.save(update_fields=["status", "updated_at"])
+    return deal
+
+
+def board_columns(deals: QuerySet[Deal]) -> list[dict[str, Any]]:
+    """Group deals into Kanban columns with count and total value."""
+    by_stage: dict[str, list[Deal]] = {stage: [] for stage in Deal.Stage.values}
+    for deal in deals.order_by("position", "id"):
+        by_stage[deal.stage].append(deal)
+    return [
+        {
+            "stage": stage,
+            "label": Deal.Stage(stage).label,
+            "count": len(items),
+            "total_value": sum((d.value for d in items), Decimal("0")),
+            "deals": items,
+        }
+        for stage, items in by_stage.items()
+    ]

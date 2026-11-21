@@ -1,10 +1,6 @@
-import type { ReactNode } from 'react';
+/* eslint-disable react-refresh/only-export-components -- route config, not a component module */
+import { lazy, type ReactNode } from 'react';
 import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom';
-import { CompaniesPage } from '../features/companies/CompaniesPage';
-import { ContactDetailPage } from '../features/contacts/ContactDetailPage';
-import { ContactsPage } from '../features/contacts/ContactsPage';
-import { LeadsPage } from '../features/leads/LeadsPage';
-import { TasksPage } from '../features/tasks/TasksPage';
 import { AppLayout } from '../layouts/AppLayout';
 import { LoginPage } from '../pages/LoginPage';
 import { NotFoundPage } from '../pages/NotFoundPage';
@@ -12,8 +8,33 @@ import { PlaceholderPage } from '../pages/PlaceholderPage';
 import { RequireAuth, RequireRole } from './guards';
 import { NAV_ITEMS } from './nav';
 
+// Each page is its own chunk, so charts and drag-and-drop load only where used.
+const CompaniesPage = lazy(() =>
+  import('../features/companies/CompaniesPage').then((m) => ({ default: m.CompaniesPage })),
+);
+const DashboardPage = lazy(() =>
+  import('../features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+);
+const ContactDetailPage = lazy(() =>
+  import('../features/contacts/ContactDetailPage').then((m) => ({ default: m.ContactDetailPage })),
+);
+const ContactsPage = lazy(() =>
+  import('../features/contacts/ContactsPage').then((m) => ({ default: m.ContactsPage })),
+);
+const LeadsPage = lazy(() =>
+  import('../features/leads/LeadsPage').then((m) => ({ default: m.LeadsPage })),
+);
+const PipelinePage = lazy(() =>
+  import('../features/pipeline/PipelinePage').then((m) => ({ default: m.PipelinePage })),
+);
+const TasksPage = lazy(() =>
+  import('../features/tasks/TasksPage').then((m) => ({ default: m.TasksPage })),
+);
+
 /** Pages that are built; everything else in NAV_ITEMS shows a placeholder. */
 const PAGES: Record<string, ReactNode> = {
+  '/dashboard': <DashboardPage />,
+  '/pipeline': <PipelinePage />,
   '/contacts': <ContactsPage />,
   '/companies': <CompaniesPage />,
   '/leads': <LeadsPage />,

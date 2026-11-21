@@ -4,8 +4,10 @@ LeadPilot is an AI-powered CRM for small businesses: Django + React, with ML lea
 GenAI writing, RAG search, a tool-calling agent with human approval, and Razorpay payments
 (test mode). The full spec is in [CLAUDE.md](CLAUDE.md).
 
-> Status: **Phase 1 (auth + core CRM)** done: JWT login with roles, companies, contacts
-> (CSV import, activity timeline), leads and tasks. Later features arrive phase by phase.
+> Status: **Phase 2 (pipeline + dashboard)** done: JWT login with roles; companies, contacts
+> (CSV import, activity timeline), leads and tasks; deals on a drag-and-drop Kanban; lead →
+> deal conversion; a KPI dashboard; daily overdue-task reminders. Later features arrive phase
+> by phase.
 
 ## Demo data and logins
 
@@ -14,7 +16,7 @@ cd backend
 python manage.py seed_demo          # add --flush to wipe and re-seed
 ```
 
-Creates 50 companies, 300 contacts, 400 leads, 500 activities and 120 tasks.
+Creates 50 companies, 300 contacts, 400 leads, 150 deals, 500 activities and 120 tasks.
 Every demo user has the password `LeadPilot@123`:
 
 | Username | Role      | Sees                                         |
@@ -33,6 +35,10 @@ Every demo user has the password `LeadPilot@123`:
 | `POST /api/auth/register/`                 | Admin only (no public sign-up)                   |
 | `/api/crm/companies/` `contacts/` `leads/` `activities/` `tasks/` | CRUD with `search`, filters, `ordering`, `page`, `page_size` |
 | `POST /api/crm/contacts/import/`           | Multipart `file` (CSV); returns per-row errors   |
+| `/api/crm/deals/` · `GET deals/board/`     | Deals CRUD; Kanban columns with count + total    |
+| `POST /api/crm/deals/<id>/move/`           | `{stage, position}`, atomic reorder              |
+| `POST /api/crm/leads/<id>/convert/`        | Creates a deal, marks the lead converted         |
+| `GET /api/analytics/summary/`              | Dashboard KPIs (cached 60 s, refreshed on change) |
 
 Full, interactive docs: http://localhost:8000/api/docs/
 
@@ -90,7 +96,10 @@ npm install
 npm run dev                       # http://localhost:5173, proxies /api to :8000
 ```
 
-Celery needs Redis; outside Docker run `celery -A config worker --pool=solo -l info`.
+Celery needs Redis; outside Docker run `celery -A config worker --pool=solo -l info` and
+`celery -A config beat -l info`. Beat sends overdue-task reminders daily at 08:00 IST (printed
+to the worker log in dev). To try it now: `python manage.py shell -c "from crm.tasks import
+send_overdue_task_reminders as t; print(t())"`.
 
 ## Tests and linting
 
@@ -117,7 +126,7 @@ frontend/  src/ api/ components/ hooks/ layouts/ pages/ routes/
 
 - [x] Phase 0: Setup & skeleton
 - [x] Phase 1: Auth + core CRM
-- [ ] Phase 2: Pipeline, tasks & dashboard
+- [x] Phase 2: Pipeline, tasks & dashboard
 - [ ] Phase 3: ML models
 - [ ] Phase 4: GenAI writer & summarizer
 - [ ] Phase 5: RAG (Ask LeadPilot)

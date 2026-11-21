@@ -5,6 +5,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -148,7 +149,17 @@ CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", REDIS_URL)
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 300
-CELERY_BEAT_SCHEDULE: dict = {}  # Scheduled jobs are added in later phases.
+CELERY_BEAT_SCHEDULE = {
+    "overdue-task-reminders": {
+        "task": "crm.send_overdue_task_reminders",
+        "schedule": crontab(hour=8, minute=0),  # every day 08:00 (TIME_ZONE)
+    },
+}
+
+# --- Email (console in dev: reminders are printed to the worker log) ---
+EMAIL_BACKEND = os.environ.get("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "LeadPilot <no-reply@leadpilot.local>")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173").rstrip("/")
 
 LOGGING = {
     "version": 1,

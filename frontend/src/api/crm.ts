@@ -1,4 +1,15 @@
-import type { Activity, Company, Contact, ImportResult, Lead, Paginated, Task } from '../types';
+import type {
+  Activity,
+  BoardColumn,
+  Company,
+  Contact,
+  Deal,
+  DealStage,
+  ImportResult,
+  Lead,
+  Paginated,
+  Task,
+} from '../types';
 import { api } from './client';
 
 export type ListParams = Record<string, string | number | boolean | undefined | null>;
@@ -48,6 +59,33 @@ export const contactsApi = {
     return data;
   },
 };
-export const leadsApi = resource<Lead>('leads');
+export const leadsApi = {
+  ...resource<Lead>('leads'),
+  async convert(
+    id: number,
+    input: {
+      title?: string;
+      value?: string | null;
+      stage?: DealStage;
+      expected_close_date?: string | null;
+    },
+  ): Promise<Deal> {
+    const { data } = await api.post<Deal>(`/api/crm/leads/${id}/convert/`, input);
+    return data;
+  },
+};
+export const dealsApi = {
+  ...resource<Deal>('deals'),
+  async board(params?: ListParams): Promise<BoardColumn[]> {
+    const { data } = await api.get<BoardColumn[]>('/api/crm/deals/board/', {
+      params: clean(params),
+    });
+    return data;
+  },
+  async move(id: number, stage: DealStage, position: number): Promise<Deal> {
+    const { data } = await api.post<Deal>(`/api/crm/deals/${id}/move/`, { stage, position });
+    return data;
+  },
+};
 export const activitiesApi = resource<Activity>('activities');
 export const tasksApi = resource<Task>('tasks');

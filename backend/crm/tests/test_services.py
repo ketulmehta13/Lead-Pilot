@@ -12,7 +12,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from crm import services
-from crm.models import Activity, Company, Contact, Lead, Task
+from crm.models import Activity, Company, Contact, Deal, Lead, Task
 
 pytestmark = pytest.mark.django_db
 
@@ -148,6 +148,9 @@ def test_seed_demo_creates_expected_volumes(db):
     assert Lead.objects.count() == 400
     assert Activity.objects.count() == 500
     assert Task.objects.count() == 120
+    assert Deal.objects.count() == 150
+    # Every converted lead has exactly one deal.
+    assert not Lead.objects.filter(status="converted", deal__isnull=True).exists()
     # Every contact belongs to the same rep as its company (keeps owner scoping coherent).
     assert not Contact.objects.exclude(company=None).exclude(owner=F("company__owner"))
 

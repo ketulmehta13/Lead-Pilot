@@ -105,6 +105,55 @@ class Lead(OwnedModel):
         return f"Lead: {self.contact} ({self.get_status_display()})"
 
 
+class Deal(OwnedModel):
+    class Stage(models.TextChoices):
+        NEW = "new", "New"
+        QUALIFIED = "qualified", "Qualified"
+        PROPOSAL = "proposal", "Proposal"
+        NEGOTIATION = "negotiation", "Negotiation"
+        WON = "won", "Won"
+        LOST = "lost", "Lost"
+
+    CLOSED_STAGES = (Stage.WON, Stage.LOST)
+    # Win probability (%) a deal gets when it enters a stage.
+    DEFAULT_PROBABILITY = {
+        Stage.NEW: 10,
+        Stage.QUALIFIED: 25,
+        Stage.PROPOSAL: 50,
+        Stage.NEGOTIATION: 75,
+        Stage.WON: 100,
+        Stage.LOST: 0,
+    }
+
+    title = models.CharField(max_length=200)
+    contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name="deals")
+    # One deal per converted lead.
+    lead = models.OneToOneField(
+        Lead, on_delete=models.SET_NULL, null=True, blank=True, related_name="deal"
+    )
+    value = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    stage = models.CharField(max_length=12, choices=Stage.choices, default=Stage.NEW)
+    expected_close_date = models.DateField(null=True, blank=True)
+    probability = models.PositiveSmallIntegerField(default=10)
+    # Order inside its Kanban column (0 = top).
+    position = models.PositiveIntegerField(default=0)
+    # When the deal reached Won/Lost; drives revenue and win-rate reporting.
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["stage", "position", "id"]
+        indexes = [models.Index(fields=["stage", "position"]), models.Index(fields=["closed_at"])]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(probability__lte=100), name="deal_probability_lte_100"
+            ),
+            models.CheckConstraint(condition=models.Q(value__gte=0), name="deal_value_gte_0"),
+        ]
+
+    def __str__(self) -> str:
+        return self.title
+
+
 class Activity(OwnedModel):
     class Type(models.TextChoices):
         CALL = "call", "Call"
@@ -116,6 +165,9 @@ class Activity(OwnedModel):
     subject = models.CharField(max_length=200)
     body = models.TextField(blank=True)
     contact = models.ForeignKey(Contact, on_delete=models.CASCADE, related_name="activities")
+    deal = models.ForeignKey(
+        Deal, on_delete=models.SET_NULL, null=True, blank=True, related_name="activities"
+    )
     # Filled by GenAI in Phase 4.
     summary = models.TextField(null=True, blank=True)  # noqa: DJ001 - null = not summarised yet
     action_items = models.JSONField(null=True, blank=True)
@@ -155,6 +207,10 @@ class Task(OwnedModel):
     contact = models.ForeignKey(
         Contact, on_delete=models.SET_NULL, null=True, blank=True, related_name="tasks"
     )
+    deal = models.ForeignKey(
+        Deal, on_delete=models.SET_NULL, null=True, blank=True, related_name="tasks"
+    )
+    reminded_at = models.DateTimeField(null=True, blank=True, editable=False)
     created_by_agent = models.BooleanField(default=False)
 
     class Meta:

@@ -1,7 +1,7 @@
 import django_filters
 from django.db.models import Q
 
-from .models import Activity, Company, Contact, Lead, Task
+from .models import Activity, Company, Contact, Deal, Lead, Task
 
 
 class CompanyFilter(django_filters.FilterSet):
@@ -40,13 +40,24 @@ class LeadFilter(django_filters.FilterSet):
         return queryset.filter(Q(last_contacted_at__lt=value) | Q(last_contacted_at__isnull=True))
 
 
+class DealFilter(django_filters.FilterSet):
+    value_min = django_filters.NumberFilter(field_name="value", lookup_expr="gte")
+    value_max = django_filters.NumberFilter(field_name="value", lookup_expr="lte")
+    closed_after = django_filters.IsoDateTimeFilter(field_name="closed_at", lookup_expr="gte")
+    closed_before = django_filters.IsoDateTimeFilter(field_name="closed_at", lookup_expr="lte")
+
+    class Meta:
+        model = Deal
+        fields = ["stage", "contact", "lead"]
+
+
 class ActivityFilter(django_filters.FilterSet):
     occurred_after = django_filters.IsoDateTimeFilter(field_name="occurred_at", lookup_expr="gte")
     occurred_before = django_filters.IsoDateTimeFilter(field_name="occurred_at", lookup_expr="lte")
 
     class Meta:
         model = Activity
-        fields = ["contact", "type"]
+        fields = ["contact", "type", "deal"]
 
 
 class TaskFilter(django_filters.FilterSet):
@@ -60,4 +71,4 @@ class TaskFilter(django_filters.FilterSet):
 
     class Meta:
         model = Task
-        fields = ["status", "priority", "contact", "assigned_to", "created_by_agent"]
+        fields = ["status", "priority", "contact", "deal", "assigned_to", "created_by_agent"]

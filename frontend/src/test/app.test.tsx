@@ -10,6 +10,28 @@ vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
   getHealth: vi.fn().mockResolvedValue({ status: 'ok', database: 'ok' }),
 }));
+vi.mock('../api/analytics', () => ({
+  analyticsApi: {
+    key: 'analytics',
+    summary: vi.fn().mockResolvedValue({
+      generated_at: new Date().toISOString(),
+      totals: {
+        leads: 400,
+        open_leads: 250,
+        open_deals: 42,
+        pipeline_value: '1250000.00',
+        weighted_pipeline_value: '500000.00',
+      },
+      leads_by_source: [{ source: 'web', label: 'Web', count: 120 }],
+      deals_by_stage: [{ stage: 'new', label: 'New', count: 5, value: '50000.00' }],
+      win_rate: 64.5,
+      revenue_this_month: '320000.00',
+      revenue_trend: [{ month: '2026-11', revenue: '320000.00', deals: 3 }],
+      tasks_due_today: 4,
+      tasks_overdue: 2,
+    }),
+  },
+}));
 vi.mock('../api/crm', () => {
   const resource = (key: string) => ({
     key,
@@ -22,7 +44,8 @@ vi.mock('../api/crm', () => {
   return {
     companiesApi: resource('companies'),
     contactsApi: { ...resource('contacts'), importCsv: vi.fn() },
-    leadsApi: resource('leads'),
+    leadsApi: { ...resource('leads'), convert: vi.fn() },
+    dealsApi: { ...resource('deals'), board: vi.fn().mockResolvedValue([]), move: vi.fn() },
     activitiesApi: resource('activities'),
     tasksApi: resource('tasks'),
   };
@@ -130,5 +153,32 @@ describe('navigation by role', () => {
     me.mockResolvedValue(makeUser('sales'));
     renderApp('/leads');
     expect(await screen.findByText('No leads yet')).toBeInTheDocument();
+  });
+});
+
+describe('dashboard', () => {
+  it('shows KPI tiles from the summary', async () => {
+    me.mockResolvedValue(makeUser('sales'));
+    renderApp('/dashboard');
+    expect(await screen.findByText('₹12,50,000')).toBeInTheDocument();
+    expect(screen.getByText('64.5%')).toBeInTheDocument();
+    expect(screen.getByText('₹3,20,000')).toBeInTheDocument();
+    expect(screen.getByText('2 overdue')).toBeInTheDocument();
+  });
+
+  it('offers a data table for each chart', async () => {
+    me.mockResolvedValue(makeUser('admin'));
+    const user = userEvent.setup();
+    renderApp('/dashboard');
+    const buttons = await screen.findAllByRole('button', { name: 'Show data' });
+    expect(buttons).toHaveLength(3);
+    await user.click(buttons[0]);
+    expect(await screen.findByRole('columnheader', { name: 'Deals won' })).toBeInTheDocument();
+  });
+
+  it('gives support staff a dashboard without sales data', async () => {
+    me.mockResolvedValue(makeUser('support'));
+    renderApp('/dashboard');
+    expect(await screen.findByText(/Support metrics arrive/)).toBeInTheDocument();
   });
 });

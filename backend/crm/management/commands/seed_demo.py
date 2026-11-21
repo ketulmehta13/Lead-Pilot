@@ -6,7 +6,7 @@
 Demo logins (password for all: see DEMO_PASSWORD):
     admin, priya (sales), rahul (sales), sneha (support)
 
-Deals (Phase 2) and tickets (Phase 3) are seeded once those models exist.
+Tickets (Phase 3) are seeded once that model exists.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from django.utils import timezone
 from faker import Faker
 
 from accounts.models import User
-from crm.models import Activity, Company, Contact, Lead, Task
+from crm.models import Activity, Company, Contact, Deal, Lead, Task
 from crm.services import CONTACTING_TYPES, OPEN_LEAD_STATUSES
 
 DEMO_PASSWORD = "LeadPilot@123"
@@ -40,6 +40,14 @@ ACTIVITY_SUBJECTS = {
     "meeting": ["Product demo", "On-site meeting", "Quarterly review", "Kick-off meeting"],
     "note": ["Internal note", "Budget update", "Decision-maker identified", "Competitor mentioned"],
 }
+DEAL_PRODUCTS = [
+    "Annual licence",
+    "Onboarding package",
+    "Pilot",
+    "Renewal",
+    "Expansion",
+    "Consulting",
+]
 TASK_TITLES = [
     "Send follow-up email", "Schedule demo", "Prepare proposal", "Call back about pricing",
     "Share onboarding docs", "Confirm budget", "Book quarterly review", "Update contact details",
@@ -64,7 +72,7 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             if flush:
-                for model in (Task, Activity, Lead, Contact, Company):
+                for model in (Task, Activity, Deal, Lead, Contact, Company):
                     model.objects.all().delete()
 
             users = self._users()
@@ -145,6 +153,8 @@ class Command(BaseCommand):
                 lead.last_contacted_at = last_contact[lead.contact_id]
             Lead.objects.bulk_update(open_leads, ["last_contacted_at"])
 
+            deals = self._deals(leads, contacts, now)
+
             tasks = []
             for _ in range(120):
                 contact = random.choice(contacts)
@@ -165,12 +175,48 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Seeded {len(users)} users, {len(companies)} companies, {len(contacts)} contacts, "
-                f"{len(leads)} leads, {len(activities)} activities, {len(tasks)} tasks."
+                f"{len(leads)} leads, {len(deals)} deals, {len(activities)} activities, "
+                f"{len(tasks)} tasks."
             )
         )
         self.stdout.write(
             "Logins: " + ", ".join(u for u, *_ in DEMO_USERS) + f"  (password: {DEMO_PASSWORD})"
         )
+
+    def _deals(self, leads: list[Lead], contacts: list[Contact], now) -> list[Deal]:
+        """150 deals: one per converted lead, the rest straight from contacts."""
+        converted = [lead for lead in leads if lead.status == Lead.Status.CONVERTED]
+        sources: list[tuple[Contact, Lead | None]] = [(lead.contact, lead) for lead in converted]
+        sources += [(c, None) for c in random.sample(contacts, k=max(0, 150 - len(sources)))]
+        stages = random.choices(Deal.Stage.values, weights=[15, 15, 15, 12, 28, 15], k=150)
+
+        deals, positions = [], {stage: 0 for stage in Deal.Stage.values}
+        for (contact, lead), stage in zip(sources[:150], stages, strict=False):
+            name = contact.company.name if contact.company else contact.full_name
+            value = (
+                lead.budget
+                if lead and lead.budget
+                else Decimal(random.randrange(50_000, 1_500_000, 10_000))
+            )
+            closed = stage in Deal.CLOSED_STAGES
+            deal = Deal(
+                owner=contact.owner,
+                contact=contact,
+                lead=lead,
+                title=f"{name} – {random.choice(DEAL_PRODUCTS)}",
+                value=value,
+                stage=stage,
+                probability=Deal.DEFAULT_PROBABILITY[stage],
+                position=positions[stage],
+                # Wins/losses spread over the last 12 months feed the revenue trend.
+                closed_at=now - timedelta(days=random.randint(0, 360)) if closed else None,
+                expected_close_date=(
+                    None if closed else (now + timedelta(days=random.randint(7, 90))).date()
+                ),
+            )
+            positions[stage] += 1
+            deals.append(deal)
+        return Deal.objects.bulk_create(deals)
 
     def _users(self) -> list[User]:
         users = []

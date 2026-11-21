@@ -73,3 +73,15 @@ export const PRIORITY_TONE: Record<string, Tone> = { low: 'slate', medium: 'sky'
 export function labelOf(options: Option[], value: string | null | undefined): string {
   return options.find((o) => o.value === value)?.label ?? value ?? '—';
 }
+
+export const DEAL_STAGE_OPTIONS: Option[] = [
+  { value: 'new', label: 'New' },
+  { value: 'qualified', label: 'Qualified' },
+  { value: 'proposal', label: 'Proposal' },
+  { value: 'negotiation', label: 'Negotiation' },
+  { value: 'won', label: 'Won' },
+  { value: 'lost', label: 'Lost' },
+];
+export const OPEN_DEAL_STAGE_OPTIONS = DEAL_STAGE_OPTIONS.filter(
+  (o) => o.value !== 'won' && o.value !== 'lost',
+);

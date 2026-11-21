@@ -9,13 +9,24 @@ from rest_framework.response import Response
 from common.viewsets import OwnerScopedViewSet
 
 from . import services
-from .filters import ActivityFilter, CompanyFilter, ContactFilter, LeadFilter, TaskFilter
-from .models import Activity, Company, Contact, Lead, Task
+from .filters import (
+    ActivityFilter,
+    CompanyFilter,
+    ContactFilter,
+    DealFilter,
+    LeadFilter,
+    TaskFilter,
+)
+from .models import Activity, Company, Contact, Deal, Lead, Task
 from .serializers import (
     ActivitySerializer,
+    BoardColumnSerializer,
     CompanySerializer,
     ContactImportResultSerializer,
     ContactSerializer,
+    DealMoveSerializer,
+    DealSerializer,
+    LeadConvertSerializer,
     LeadSerializer,
     TaskSerializer,
 )
@@ -74,7 +85,7 @@ class ContactViewSet(OwnerScopedViewSet):
 
 
 class LeadViewSet(OwnerScopedViewSet):
-    queryset = Lead.objects.select_related("contact", "contact__company", "owner")
+    queryset = Lead.objects.select_related("contact", "contact__company", "owner", "deal")
     serializer_class = LeadSerializer
     filterset_class = LeadFilter
     search_fields = [
@@ -85,6 +96,62 @@ class LeadViewSet(OwnerScopedViewSet):
         "notes",
     ]
     ordering_fields = ["created_at", "budget", "score", "status", "last_contacted_at"]
+
+    @extend_schema(request=LeadConvertSerializer, responses={201: DealSerializer})
+    @action(detail=True, methods=["post"])
+    def convert(self, request: Request, pk=None) -> Response:
+        """Create a deal from this lead and mark the lead converted."""
+        lead = self.get_object()
+        params = LeadConvertSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        try:
+            deal = services.convert_lead(lead, **params.validated_data)
+        except services.LeadAlreadyConverted as exc:
+            raise serializers.ValidationError({"non_field_errors": [str(exc)]}) from exc
+        return Response(
+            DealSerializer(deal, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class DealViewSet(OwnerScopedViewSet):
+    queryset = Deal.objects.select_related("contact", "contact__company", "owner")
+    serializer_class = DealSerializer
+    filterset_class = DealFilter
+    search_fields = ["title", "contact__first_name", "contact__last_name", "contact__company__name"]
+    ordering_fields = ["value", "expected_close_date", "created_at", "position", "closed_at"]
+
+    def perform_create(self, serializer) -> None:
+        serializer.instance = services.create_deal(
+            owner=self.request.user, **serializer.validated_data
+        )
+
+    def perform_update(self, serializer) -> None:
+        serializer.instance = services.update_deal(
+            serializer.instance, actor=self.request.user, **serializer.validated_data
+        )
+
+    @extend_schema(responses=BoardColumnSerializer(many=True))
+    @action(detail=False, methods=["get"], pagination_class=None)
+    def board(self, request: Request) -> Response:
+        """All visible deals grouped into Kanban columns (supports the same filters)."""
+        deals = self.filter_queryset(self.get_queryset())
+        columns = services.board_columns(deals)
+        return Response(
+            BoardColumnSerializer(columns, many=True, context=self.get_serializer_context()).data
+        )
+
+    @extend_schema(request=DealMoveSerializer, responses=DealSerializer)
+    @action(detail=True, methods=["post"])
+    def move(self, request: Request, pk=None) -> Response:
+        """Drag-and-drop: set stage and position atomically."""
+        deal = self.get_object()
+        params = DealMoveSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        deal = services.move_deal(
+            deal, actor=request.user, visible=self.get_queryset(), **params.validated_data
+        )
+        return Response(self.get_serializer(deal).data)
 
 
 class ActivityViewSet(OwnerScopedViewSet):
