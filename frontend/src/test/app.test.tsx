@@ -73,6 +73,58 @@ vi.mock('../api/genai', () => ({
     remove: vi.fn(),
   },
 }));
+vi.mock('../api/agent', () => {
+  const step = (id: number, tool: string, status: string, extra = {}) => ({
+    id,
+    order: id,
+    tool_name: tool,
+    tool_input: {},
+    tool_output: status === 'pending_approval' ? null : { ok: true },
+    note: '',
+    requires_approval: status === 'pending_approval',
+    approved: null,
+    status,
+    decided_at: null,
+    created_at: new Date().toISOString(),
+    ...extra,
+  });
+  const base = {
+    id: 5,
+    goal: 'Find hot leads not contacted in 7 days, draft follow-ups and create tasks',
+    final_summary: '',
+    error: '',
+    max_steps: 10,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    finished_at: null,
+  };
+  const paused = {
+    ...base,
+    status: 'awaiting_approval',
+    steps: [
+      step(1, 'search_leads', 'done'),
+      step(2, 'draft_email', 'done', {
+        tool_output: { to: 'asha@acme.io', subject: 'Quick follow-up', body: 'Hi Asha' },
+      }),
+      step(3, 'create_task', 'pending_approval'),
+    ],
+  };
+  const finished = {
+    ...paused,
+    status: 'done',
+    final_summary: 'Drafted 1 follow-up and created 1 task.',
+    steps: [...paused.steps.slice(0, 2), { ...paused.steps[2], status: 'done', approved: true }],
+  };
+  return {
+    agentApi: {
+      key: 'agent',
+      start: vi.fn().mockResolvedValue(paused),
+      get: vi.fn().mockResolvedValueOnce(paused).mockResolvedValue(finished),
+      list: vi.fn().mockResolvedValue([]),
+      decide: vi.fn().mockResolvedValue(finished),
+    },
+  };
+});
 vi.mock('../api/support', () => ({
   ticketsApi: {
     key: 'tickets',
@@ -262,5 +314,22 @@ describe('Ask LeadPilot', () => {
     const chip = screen.getByRole('link', { name: /\[1\].*activity #42/i });
     expect(chip).toHaveAttribute('href', '/contacts/7');
     expect(screen.getByText('What did we discuss with Nimbus last month?')).toBeInTheDocument();
+  });
+});
+
+describe('Agent', () => {
+  it('pauses on a write step and finishes after approval', async () => {
+    me.mockResolvedValue(makeUser('sales'));
+    const user = userEvent.setup();
+    renderApp('/agent');
+    await user.click(
+      await screen.findByRole('button', { name: /find hot leads not contacted in 7 days/i }),
+    );
+    await user.click(screen.getByRole('button', { name: /run agent/i }));
+    expect(await screen.findByText('Needs your approval')).toBeInTheDocument();
+    expect(screen.getByText('Quick follow-up')).toBeInTheDocument();
+    expect(screen.getByText(/this changes your crm/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^approve$/i }));
+    expect(await screen.findByText('Drafted 1 follow-up and created 1 task.')).toBeInTheDocument();
   });
 });

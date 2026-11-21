@@ -51,6 +51,8 @@ Every demo user has the password `LeadPilot@123`:
 | `POST /api/genai/action-items-to-tasks/`   | `{activity_id, items: [index…]}` → tasks         |
 | `POST /api/genai/ask/`                     | `{question, conversation_id?}` → answer + citations |
 | `/api/genai/conversations/`                | Your Ask LeadPilot chat history                  |
+| `POST /api/agent/runs/` · `GET runs/<id>/` | Start an agent run with `{goal}`; poll its steps |
+| `POST /api/agent/steps/<id>/approve/` · `reject/` | Decide a pending write step                |
 
 Full, interactive docs: http://localhost:8000/api/docs/
 
@@ -163,6 +165,19 @@ treated as data (tested).
   Signals + Celery keep the index fresh; `python manage.py reindex_all` rebuilds it.
   (On SQLite the same data is searched with NumPy, so it also works without Docker.)
 
+## CRM agent
+
+Give it a goal ("Find hot leads not contacted in 7 days, draft follow-ups and create tasks").
+`backend/agent/agent.py` runs a tool-calling loop through the same LLM wrapper:
+
+- **Read tools run automatically**: `search_leads`, `get_contact_history`, `draft_email`
+  (drafts only, never sends), `ask_crm` (RAG).
+- **Write tools pause the run for your approval**: `create_task`, `update_deal_stage` (plus
+  invoice/payment-link tools from Phase 7). Rejecting a step tells the agent to skip it.
+- Max 10 steps per run, every step logged (`AgentStep`), no delete or money-moving tools,
+  everything scoped to the user's own data. Runs execute in Celery; the page polls every 2 s.
+- Without an LLM key a labelled offline planner demonstrates the approval flow.
+
 ## Tests and linting
 
 ```bash
@@ -192,6 +207,6 @@ frontend/  src/ api/ components/ hooks/ layouts/ pages/ routes/
 - [x] Phase 3: ML models
 - [x] Phase 4: GenAI writer & summarizer
 - [x] Phase 5: RAG (Ask LeadPilot)
-- [ ] Phase 6: Agent
+- [x] Phase 6: Agent
 - [ ] Phase 7: Invoicing & Razorpay
 - [ ] Phase 8: Testing, polish & deploy

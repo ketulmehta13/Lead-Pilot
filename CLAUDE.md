@@ -12,7 +12,7 @@ how to run it, and how to test it.
 - [x] Phase 3 — ML models
 - [x] Phase 4 — GenAI writer & summarizer
 - [x] Phase 5 — RAG: Ask LeadPilot
-- [ ] Phase 6 — Agent
+- [x] Phase 6 — Agent
 - [ ] Phase 7 — Invoicing & Razorpay
 - [ ] Phase 8 — Testing, polish & deploy
 
@@ -63,6 +63,11 @@ Decisions made while building (keep consistent):
   falls back to NumPy). Scope: admin all, sales owner=user, support tickets only. Entity +
   date filters from the question, threshold halves when filtered. EMBEDDINGS_BACKEND=hash in
   tests/CI (no model download). Index kept fresh by genai/signals.py.
+- Agent: agent/tools.py registry (Tool name/description/JSON schema/write flag/fn, calls
+  services, scoped to run.user, errors returned as {"error"}); agent/agent.py advance()/decide();
+  write calls -> pending AgentStep + run awaiting_approval; results for one turn appended
+  together; MAX_STEPS=10 (over-limit calls not run). Mock provider -> offline_planner unless
+  scripted_llm is active. Phase 7 must register create_invoice / create_payment_link (write).
 - Frontend: features/<module>/ pages + modals (pages are lazy-loaded), shared UI in components/ui, schemas tested in
   lib/schemas.ts, API errors via api/errors.parseApiError, JWT refresh in api/client.ts.
 
