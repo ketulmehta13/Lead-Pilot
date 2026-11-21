@@ -6,3 +6,5 @@ db.sqlite3
 .coverage
 htmlcov
 .env
+e2e.sqlite3
+ml/data

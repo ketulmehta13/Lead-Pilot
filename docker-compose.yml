@@ -1,11 +1,16 @@
 name: leadpilot
 
 x-backend: &backend
-  build: ./backend
+  # One image shared by backend, celery and celery-beat (built once, by "backend").
+  image: leadpilot-backend:dev
+  pull_policy: never
   env_file: .env
   environment:
     DATABASE_URL: postgres://${POSTGRES_USER:-leadpilot}:${POSTGRES_PASSWORD:-leadpilot}@postgres:5432/${POSTGRES_DB:-leadpilot}
     REDIS_URL: redis://redis:6379/0
+    # The slim image has no PyTorch, so RAG uses hash embeddings. For real embeddings set
+    # DOCKER_WITH_EMBEDDINGS=1 and DOCKER_EMBEDDINGS_BACKEND=sentence-transformers in .env.
+    EMBEDDINGS_BACKEND: ${DOCKER_EMBEDDINGS_BACKEND:-hash}
   volumes:
     - ./backend:/app
   depends_on:
@@ -22,7 +27,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-leadpilot}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leadpilot}
     ports:
-      - "5432:5432"
+      # Host port 5433 so a locally installed Postgres on 5432 doesn't clash.
+      # Containers still reach it as postgres:5432 on the compose network.
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -43,6 +50,10 @@ services:
 
   backend:
     <<: *backend
+    build:
+      context: ./backend
+      args:
+        WITH_EMBEDDINGS: ${DOCKER_WITH_EMBEDDINGS:-0}
     command: sh -c "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000"
     ports:
       - "8000:8000"

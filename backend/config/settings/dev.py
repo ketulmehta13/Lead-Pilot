@@ -2,8 +2,13 @@
 
 import os
 
-from .base import *  # noqa: F401,F403
-from .base import env_bool
+from .dotenv import load_dotenv
+
+# Must run before base is imported: base reads env vars at import time.
+load_dotenv()
+
+from .base import *  # noqa: E402,F401,F403
+from .base import env_bool  # noqa: E402
 
 DEBUG = env_bool("DJANGO_DEBUG", True)
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or "dev-only-insecure-key-change-me"

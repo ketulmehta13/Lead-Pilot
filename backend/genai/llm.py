@@ -11,7 +11,7 @@ Tools: [{"name", "description", "parameters": <JSON schema>}].
 
 Providers (env LLM_PROVIDER, default: groq if GROQ_API_KEY, else anthropic if
 ANTHROPIC_API_KEY, else mock):
-    groq       Groq's OpenAI-compatible REST API (default model llama-3.3-70b-versatile)
+    groq       Groq's OpenAI-compatible REST API (default model openai/gpt-oss-120b)
     openai     OpenAI's REST API (same adapter, different base URL)
     anthropic  Claude via the official `anthropic` SDK (default model claude-opus-5-5)
     mock       deterministic offline output: tests, and running without any API key
@@ -38,7 +38,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODELS = {
-    "groq": "llama-3.3-70b-versatile",
+    "groq": "openai/gpt-oss-120b",
     "openai": "gpt-4o-mini",
     "anthropic": "claude-opus-5-5",
     "mock": "mock-1",
@@ -250,6 +250,9 @@ def _openai_compatible(name: str):
             "max_tokens": max_tokens,
             "temperature": 0.3,
         }
+        if model.startswith("openai/gpt-oss"):
+            # Reasoning model: keep thinking short (latency, and it shares max_tokens).
+            body["reasoning_effort"] = os.environ.get("LLM_REASONING_EFFORT", "low")
         if tools:
             body["tools"] = [
                 {
