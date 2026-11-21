@@ -18,3 +18,5 @@ CELERY_RESULT_BACKEND = "cache+memory://"
 # Never call a real LLM from tests, even if a developer has API keys exported.
 os.environ["LLM_PROVIDER"] = "mock"
 os.environ["LLM_MAX_RETRIES"] = "1"
+# Deterministic, download-free embeddings in tests/CI.
+os.environ["EMBEDDINGS_BACKEND"] = "hash"

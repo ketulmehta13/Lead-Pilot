@@ -39,9 +39,22 @@ jobs:
         env:
           DJANGO_SETTINGS_MODULE: config.settings.test
       - name: Tests
-        run: pytest --cov --cov-report=term-missing
+        run: pytest --cov --cov-report=term-missing --junitxml=junit.xml
         env:
           DATABASE_URL: postgres://leadpilot:leadpilot@localhost:5432/leadpilot
+      - name: Report failing tests as annotations
+        if: failure()
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          if not Path("junit.xml").exists():
+              raise SystemExit(0)
+          for case in ET.parse("junit.xml").iter("testcase"):
+              for bad in list(case.iter("failure")) + list(case.iter("error")):
+                  msg = (bad.get("message") or bad.text or "").replace("\n", " ")[:400]
+                  print(f"::error title={case.get('classname')}.{case.get('name')}::{msg}")
+          PY
 
   frontend:
     runs-on: ubuntu-latest

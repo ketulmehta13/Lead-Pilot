@@ -57,3 +57,64 @@ export const genaiApi = {
     return data;
   },
 };
+
+export interface Citation {
+  type: 'activity' | 'ticket' | 'lead';
+  id: number;
+  snippet: string;
+  contact_id: number | null;
+  date: string | null;
+  link: string;
+  similarity: number;
+}
+
+export interface AskResult {
+  conversation_id: number;
+  answer: string;
+  citations: Citation[];
+}
+
+export interface ConversationSummary {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationMessage {
+  id: number;
+  role: 'user' | 'assistant';
+  content: string;
+  citations: Citation[];
+  created_at: string;
+}
+
+export const askApi = {
+  key: 'ask',
+  async ask(question: string, conversationId: number | null): Promise<AskResult> {
+    const { data } = await api.post<AskResult>(
+      '/api/genai/ask/',
+      { question, conversation_id: conversationId },
+      { timeout: LLM_TIMEOUT },
+    );
+    return data;
+  },
+  async conversations(): Promise<ConversationSummary[]> {
+    const { data } = await api.get<{ results: ConversationSummary[] }>(
+      '/api/genai/conversations/',
+      {
+        params: { page_size: 30 },
+      },
+    );
+    return data.results;
+  },
+  async conversation(
+    id: number,
+  ): Promise<ConversationSummary & { messages: ConversationMessage[] }> {
+    const { data } = await api.get(`/api/genai/conversations/${id}/`);
+    return data;
+  },
+  async remove(id: number): Promise<void> {
+    await api.delete(`/api/genai/conversations/${id}/`);
+  },
+};

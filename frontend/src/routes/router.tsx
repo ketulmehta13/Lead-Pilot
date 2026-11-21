@@ -31,6 +31,7 @@ const TasksPage = lazy(() =>
   import('../features/tasks/TasksPage').then((m) => ({ default: m.TasksPage })),
 );
 
+const AskPage = lazy(() => import('../features/ask/AskPage').then((m) => ({ default: m.AskPage })));
 const TicketsPage = lazy(() =>
   import('../features/tickets/TicketsPage').then((m) => ({ default: m.TicketsPage })),
 );
@@ -47,6 +48,7 @@ const PAGES: Record<string, ReactNode> = {
   '/leads': <LeadsPage />,
   '/tasks': <TasksPage />,
   '/tickets': <TicketsPage />,
+  '/ask': <AskPage />,
   '/ml-insights': <MlInsightsPage />,
 };
 

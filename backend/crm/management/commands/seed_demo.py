@@ -28,6 +28,8 @@ from crm.models import Activity, Company, Contact, Deal, Lead, Task
 from crm.services import CONTACTING_TYPES, OPEN_LEAD_STATUSES
 from support.models import Ticket
 
+from ._demo_text import activity_notes, lead_notes
+
 DEMO_PASSWORD = "LeadPilot@123"
 DEMO_USERS = [
     ("admin", "Admin", "User", User.Role.ADMIN),
@@ -168,7 +170,7 @@ class Command(BaseCommand):
                     source=random.choices(Lead.Source.values, weights=[30, 20, 25, 10, 15])[0],
                     status=random.choices(Lead.Status.values, weights=[30, 25, 20, 10, 15])[0],
                     budget=Decimal(random.randrange(20_000, 2_000_000, 5_000)),
-                    notes=fake.paragraph(nb_sentences=2),
+                    notes=lead_notes(*_who(contact)),
                 )
                 for contact in random.choices(contacts, k=400)
             )
@@ -201,7 +203,7 @@ class Command(BaseCommand):
                         contact=contact,
                         type=kind,
                         subject=random.choice(ACTIVITY_SUBJECTS[kind]),
-                        body=fake.paragraph(nb_sentences=random.randint(2, 6)),
+                        body=activity_notes(kind, *_who(contact)),
                         occurred_at=now
                         - timedelta(days=random.randint(0, 120), hours=random.randint(0, 23)),
                     )
@@ -251,6 +253,7 @@ class Command(BaseCommand):
             )
         )
         self._apply_ml()
+        self._index_rag()
         self.stdout.write(
             "Logins: " + ", ".join(u for u, *_ in DEMO_USERS) + f"  (password: {DEMO_PASSWORD})"
         )
@@ -345,6 +348,17 @@ class Command(BaseCommand):
         )
         return tickets
 
+    def _index_rag(self) -> None:
+        """Build the Ask LeadPilot index. Needs the embedding model (downloaded on first use)."""
+        from genai import rag
+
+        try:
+            counts = rag.reindex_all()
+        except Exception as exc:  # noqa: BLE001 - seeding must not fail because of RAG
+            self.stdout.write(f"Search index not built ({exc}). Run `manage.py reindex_all`.")
+            return
+        self.stdout.write(f"Search index: {counts}")
+
     def _apply_ml(self) -> None:
         from ml import services as ml
 
@@ -394,3 +408,12 @@ def closed_date(now):
     latest = now if months_ago == 0 else start + timedelta(days=27)
     span = max((latest - start).days, 1)
     return start + timedelta(days=random.randint(0, span - 1), hours=random.randint(0, 8))
+
+
+def _who(contact: Contact) -> tuple[str, str, str]:
+    company = contact.company
+    return (
+        contact.first_name,
+        company.city if company and company.city else "Mumbai",
+        company.get_industry_display().lower() if company else "retail",
+    )

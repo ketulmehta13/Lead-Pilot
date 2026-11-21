@@ -1,6 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { MessageSquare, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { parseApiError } from '../../api/errors';
 import { ticketsApi } from '../../api/support';
 import { Button } from '../../components/ui/Button';
@@ -21,6 +22,26 @@ export function TicketsPage() {
   const list = useListParams({ open: 'true', priority: '', sentiment: '' });
   const [creating, setCreating] = useState(false);
   const [viewing, setViewing] = useState<Ticket | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedId = Number(searchParams.get('ticket')) || null;
+
+  // Citation links from Ask LeadPilot open a ticket directly: /tickets?ticket=<id>
+  useEffect(() => {
+    if (!linkedId) return;
+    let cancelled = false;
+    ticketsApi
+      .get(linkedId)
+      .then((t) => !cancelled && setViewing(t))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedId]);
+
+  const closeViewing = () => {
+    setViewing(null);
+    if (linkedId) setSearchParams({}, { replace: true });
+  };
 
   const query = useQuery({
     queryKey: [ticketsApi.key, list.params],
@@ -139,9 +160,7 @@ export function TicketsPage() {
         onPageChange={list.setPage}
       />
       {creating && <TicketFormModal onClose={() => setCreating(false)} />}
-      {viewing && (
-        <TicketDetailModal ticket={viewing} canEdit={canEdit} onClose={() => setViewing(null)} />
-      )}
+      {viewing && <TicketDetailModal ticket={viewing} canEdit={canEdit} onClose={closeViewing} />}
     </section>
   );
 }

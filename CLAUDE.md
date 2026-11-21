@@ -11,7 +11,7 @@ how to run it, and how to test it.
 - [x] Phase 2 — Pipeline, tasks & dashboard
 - [x] Phase 3 — ML models
 - [x] Phase 4 — GenAI writer & summarizer
-- [ ] Phase 5 — RAG: Ask LeadPilot
+- [x] Phase 5 — RAG: Ask LeadPilot
 - [ ] Phase 6 — Agent
 - [ ] Phase 7 — Invoicing & Razorpay
 - [ ] Phase 8 — Testing, polish & deploy
@@ -58,6 +58,11 @@ Decisions made while building (keep consistent):
   `genai.services.structured_chat` (Pydantic, one retry, then LLMOutputError -> 502).
   Untrusted CRM text goes inside the <crm_data> fence via `prompts.fence()`. Tests script
   replies with `genai.testing.scripted_llm`.
+- RAG: genai.DocumentChunk (pgvector VectorField; extension + HNSW index created by
+  Postgres-only migration ops in common/migration_ops.py; SQLite stores text and rag.search
+  falls back to NumPy). Scope: admin all, sales owner=user, support tickets only. Entity +
+  date filters from the question, threshold halves when filtered. EMBEDDINGS_BACKEND=hash in
+  tests/CI (no model download). Index kept fresh by genai/signals.py.
 - Frontend: features/<module>/ pages + modals (pages are lazy-loaded), shared UI in components/ui, schemas tested in
   lib/schemas.ts, API errors via api/errors.parseApiError, JWT refresh in api/client.ts.
 

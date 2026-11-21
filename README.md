@@ -49,6 +49,8 @@ Every demo user has the password `LeadPilot@123`:
 | `POST /api/genai/draft-email/`             | `{contact_id, goal, tone}` → `{subject, body}`   |
 | `POST /api/genai/summarize-activity/`      | `{activity_id}` → summary, action items, sentiment |
 | `POST /api/genai/action-items-to-tasks/`   | `{activity_id, items: [index…]}` → tasks         |
+| `POST /api/genai/ask/`                     | `{question, conversation_id?}` → answer + citations |
+| `/api/genai/conversations/`                | Your Ask LeadPilot chat history                  |
 
 Full, interactive docs: http://localhost:8000/api/docs/
 
@@ -153,6 +155,13 @@ treated as data (tested).
 - **Draft with AI** (contact page): follow-up email from the last 10 activities + deals.
 - **Summarize** (long activities): summary, sentiment and action items → tasks.
 - 20 AI requests per minute per user (`GENAI_RATE_LIMIT`).
+- **Ask LeadPilot** (RAG): activities, tickets and lead notes are chunked (~500 chars, 50
+  overlap), embedded with `all-MiniLM-L6-v2` (384-d) and stored in **pgvector** with an HNSW
+  cosine index. A question is scoped to what the user may see, narrowed by any company/contact
+  name or date phrase it contains ("last month"), then the top 5 chunks ground the answer,
+  which cites its sources. Weak matches answer "I don't know" without calling the LLM.
+  Signals + Celery keep the index fresh; `python manage.py reindex_all` rebuilds it.
+  (On SQLite the same data is searched with NumPy, so it also works without Docker.)
 
 ## Tests and linting
 
@@ -182,7 +191,7 @@ frontend/  src/ api/ components/ hooks/ layouts/ pages/ routes/
 - [x] Phase 2: Pipeline, tasks & dashboard
 - [x] Phase 3: ML models
 - [x] Phase 4: GenAI writer & summarizer
-- [ ] Phase 5: RAG (Ask LeadPilot)
+- [x] Phase 5: RAG (Ask LeadPilot)
 - [ ] Phase 6: Agent
 - [ ] Phase 7: Invoicing & Razorpay
 - [ ] Phase 8: Testing, polish & deploy

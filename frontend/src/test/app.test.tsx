@@ -43,6 +43,36 @@ vi.mock('../api/ml', () => ({
     rescoreAll: vi.fn(),
   },
 }));
+vi.mock('../api/genai', () => ({
+  genaiApi: {
+    key: 'genai',
+    status: vi.fn().mockResolvedValue({ configured: true, provider: 'groq', model: 'llama' }),
+    draftEmail: vi.fn(),
+    summarize: vi.fn(),
+    actionItemsToTasks: vi.fn(),
+  },
+  askApi: {
+    key: 'ask',
+    ask: vi.fn().mockResolvedValue({
+      conversation_id: 9,
+      answer: 'You discussed pricing for 40 seats.',
+      citations: [
+        {
+          type: 'activity',
+          id: 42,
+          snippet: 'Meeting with Meera Shah (Nimbus) - pricing for 40 seats',
+          contact_id: 7,
+          date: '2026-10-12',
+          link: '/contacts/7',
+          similarity: 0.61,
+        },
+      ],
+    }),
+    conversations: vi.fn().mockResolvedValue([]),
+    conversation: vi.fn(),
+    remove: vi.fn(),
+  },
+}));
 vi.mock('../api/support', () => ({
   ticketsApi: {
     key: 'tickets',
@@ -216,5 +246,21 @@ describe('dashboard', () => {
     me.mockResolvedValue(makeUser('support'));
     renderApp('/dashboard');
     expect(await screen.findByText(/Support metrics arrive/)).toBeInTheDocument();
+  });
+});
+
+describe('Ask LeadPilot', () => {
+  it('answers with clickable citations to the source record', async () => {
+    me.mockResolvedValue(makeUser('sales'));
+    const user = userEvent.setup();
+    renderApp('/ask');
+    await user.type(
+      await screen.findByLabelText('Your question'),
+      'What did we discuss with Nimbus last month?{Enter}',
+    );
+    expect(await screen.findByText('You discussed pricing for 40 seats.')).toBeInTheDocument();
+    const chip = screen.getByRole('link', { name: /\[1\].*activity #42/i });
+    expect(chip).toHaveAttribute('href', '/contacts/7');
+    expect(screen.getByText('What did we discuss with Nimbus last month?')).toBeInTheDocument();
   });
 });

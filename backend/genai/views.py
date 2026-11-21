@@ -1,7 +1,7 @@
 from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import serializers, status
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.exceptions import APIException
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -12,8 +12,8 @@ from common.permissions import IsAdminRole, RolePermission
 from crm.models import Activity, Contact
 from crm.serializers import TaskSerializer
 
-from . import llm, services
-from .models import LLMCall
+from . import llm, rag, services
+from .models import Conversation, ConversationMessage, LLMCall
 
 
 class GenAIThrottle(UserRateThrottle):
@@ -174,3 +174,68 @@ class UsageView(APIView):
             .order_by("purpose", "status")
         )
         return Response(list(rows))
+
+
+# --- Ask LeadPilot (RAG) ----------------------------------------------------------------------
+
+
+class AskSerializer(serializers.Serializer):
+    question = serializers.CharField(max_length=1000, trim_whitespace=True)
+    conversation_id = serializers.IntegerField(required=False, allow_null=True)
+
+
+class AskView(APIView):
+    """Answer a question from the user's own CRM records, with citations to the sources."""
+
+    permission_classes = [RolePermission]
+    allowed_roles = ("sales", "support")
+    throttle_classes = [GenAIThrottle]
+
+    @extend_schema(request=AskSerializer, responses={200: OpenApiResponse()})
+    def post(self, request: Request) -> Response:
+        params = AskSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        conversation = None
+        if params.validated_data.get("conversation_id"):
+            conversation = get_object_or_404(
+                Conversation, pk=params.validated_data["conversation_id"], user=request.user
+            )
+        result = run_llm(rag.answer, params.validated_data["question"], request.user, conversation)
+        return Response(result)
+
+
+class ConversationMessageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConversationMessage
+        fields = ["id", "role", "content", "citations", "created_at"]
+
+
+class ConversationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Conversation
+        fields = ["id", "title", "created_at", "updated_at"]
+
+
+class ConversationDetailSerializer(ConversationSerializer):
+    messages = ConversationMessageSerializer(many=True, read_only=True)
+
+    class Meta(ConversationSerializer.Meta):
+        fields = [*ConversationSerializer.Meta.fields, "messages"]
+
+
+class ConversationViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Your Ask LeadPilot chat history (each user only sees their own)."""
+
+    permission_classes = [RolePermission]
+    allowed_roles = ("sales", "support")
+
+    def get_queryset(self):
+        return Conversation.objects.filter(user=self.request.user).prefetch_related("messages")
+
+    def get_serializer_class(self):
+        return ConversationDetailSerializer if self.action == "retrieve" else ConversationSerializer
