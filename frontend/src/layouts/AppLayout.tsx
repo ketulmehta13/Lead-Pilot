@@ -1,14 +1,19 @@
-import { Menu, X } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { ApiStatus } from '../components/ApiStatus';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { useAuth } from '../features/auth/AuthContext';
 import { NAV_ITEMS } from '../routes/nav';
 
+const ROLE_LABEL = { admin: 'Admin', sales: 'Sales Rep', support: 'Support' } as const;
+
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const { hasRole } = useAuth();
+  const items = NAV_ITEMS.filter((item) => !item.roles || hasRole(...item.roles));
   return (
     <nav aria-label="Main" className="flex flex-col gap-1 p-3">
-      {NAV_ITEMS.map(({ path, label, icon: Icon }) => (
+      {items.map(({ path, label, icon: Icon }) => (
         <NavLink
           key={path}
           to={path}
@@ -84,11 +89,34 @@ export function AppLayout() {
           <div className="flex-1" />
           <ApiStatus />
           <ThemeToggle />
+          <UserMenu />
         </header>
         <main className="mx-auto max-w-7xl p-4 sm:p-6">
           <Outlet />
         </main>
       </div>
+    </div>
+  );
+}
+
+function UserMenu() {
+  const { user, logout } = useAuth();
+  if (!user) return null;
+  return (
+    <div className="flex items-center gap-2 border-l border-slate-200 pl-3 dark:border-slate-800">
+      <div className="hidden text-right leading-tight sm:block">
+        <p className="text-sm font-medium">{user.full_name}</p>
+        <p className="text-xs text-slate-500">{ROLE_LABEL[user.role]}</p>
+      </div>
+      <button
+        type="button"
+        onClick={logout}
+        aria-label="Sign out"
+        title="Sign out"
+        className="rounded-md p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+      >
+        <LogOut className="size-5" />
+      </button>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 """Production settings. Every secret must come from the environment."""
+
 import os
 
 from django.core.exceptions import ImproperlyConfigured

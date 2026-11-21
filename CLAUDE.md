@@ -7,7 +7,7 @@ how to run it, and how to test it.
 
 ## Build status
 - [x] Phase 0 — Setup & skeleton
-- [ ] Phase 1 — Auth + core CRM
+- [x] Phase 1 — Auth + core CRM
 - [ ] Phase 2 — Pipeline, tasks & dashboard
 - [ ] Phase 3 — ML models
 - [ ] Phase 4 — GenAI writer & summarizer
@@ -19,6 +19,20 @@ how to run it, and how to test it.
 Local note: when `DATABASE_URL` is unset the backend falls back to SQLite so it can run
 without Docker. Docker Compose (Postgres + pgvector) is the real target; pgvector features
 (Phase 5+) need Postgres.
+
+Decisions made while building (keep consistent):
+- Permissions: `common.permissions.RolePermission` + `common.viewsets.OwnerScopedViewSet`
+  (`allowed_roles`, `read_only_roles`, `unscoped_read_roles`, `scope_queryset`). Foreign keys
+  in serializers use `common.serializers.OwnedRelatedField` so reps can't link others' rows.
+- Companies are owner-scoped like contacts. Tasks are visible to their owner OR assignee;
+  reps may only assign tasks to themselves. Support reads all contacts, nothing else in crm.
+- Error format: `{"error": {"code", "message", "details"}}` (common/exceptions.py).
+- `crm.services.log_activity` stamps `last_contacted_at` on open leads (call/email/meeting)
+  and moves `new` leads to `contacted`. Always create activities through it.
+- Demo users (seed_demo): admin / priya / rahul (sales) / sneha (support), password
+  `LeadPilot@123`.
+- Frontend: features/<module>/ pages + modals, shared UI in components/ui, schemas tested in
+  lib/schemas.ts, API errors via api/errors.parseApiError, JWT refresh in api/client.ts.
 
 ## Goal
 A portfolio-grade CRM that demonstrates: full-stack development (React + Django),

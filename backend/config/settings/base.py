@@ -1,4 +1,5 @@
 """Shared Django settings. Environment-specific values come from env vars."""
+
 import os
 from datetime import timedelta
 from pathlib import Path

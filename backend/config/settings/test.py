@@ -1,10 +1,11 @@
 """Test settings: fast and isolated. Uses DATABASE_URL (Postgres in CI) or in-memory SQLite."""
+
 import os
 
 from .base import *  # noqa: F401,F403
 
 DEBUG = False
-SECRET_KEY = "test-only-key"
+SECRET_KEY = "test-only-key-not-secret-but-long-enough-for-hs256"
 if not os.environ.get("DATABASE_URL"):
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": ":memory:"}}
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

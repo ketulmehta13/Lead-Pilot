@@ -4,8 +4,37 @@ LeadPilot is an AI-powered CRM for small businesses: Django + React, with ML lea
 GenAI writing, RAG search, a tool-calling agent with human approval, and Razorpay payments
 (test mode). The full spec is in [CLAUDE.md](CLAUDE.md).
 
-> Status: **Phase 0 (skeleton)** done. The app shell, API health check and Swagger docs run;
-> features arrive phase by phase.
+> Status: **Phase 1 (auth + core CRM)** done: JWT login with roles, companies, contacts
+> (CSV import, activity timeline), leads and tasks. Later features arrive phase by phase.
+
+## Demo data and logins
+
+```bash
+cd backend
+python manage.py seed_demo          # add --flush to wipe and re-seed
+```
+
+Creates 50 companies, 300 contacts, 400 leads, 500 activities and 120 tasks.
+Every demo user has the password `LeadPilot@123`:
+
+| Username | Role      | Sees                                         |
+| -------- | --------- | -------------------------------------------- |
+| `admin`  | Admin     | Everything, all reps' data, user management  |
+| `priya`  | Sales Rep | Only her own companies, contacts, leads, tasks |
+| `rahul`  | Sales Rep | Only his own records                         |
+| `sneha`  | Support   | All contacts (read-only); tickets from Phase 3 |
+
+## API (so far)
+
+| Endpoint                                   | Notes                                            |
+| ------------------------------------------ | ------------------------------------------------ |
+| `POST /api/auth/login/`                    | `{username, password}` → access, refresh, user   |
+| `POST /api/auth/refresh/` · `GET /api/auth/me/` | Token refresh, current user                 |
+| `POST /api/auth/register/`                 | Admin only (no public sign-up)                   |
+| `/api/crm/companies/` `contacts/` `leads/` `activities/` `tasks/` | CRUD with `search`, filters, `ordering`, `page`, `page_size` |
+| `POST /api/crm/contacts/import/`           | Multipart `file` (CSV); returns per-row errors   |
+
+Full, interactive docs: http://localhost:8000/api/docs/
 
 ## Stack
 
@@ -87,7 +116,7 @@ frontend/  src/ api/ components/ hooks/ layouts/ pages/ routes/
 ## Roadmap
 
 - [x] Phase 0: Setup & skeleton
-- [ ] Phase 1: Auth + core CRM
+- [x] Phase 1: Auth + core CRM
 - [ ] Phase 2: Pipeline, tasks & dashboard
 - [ ] Phase 3: ML models
 - [ ] Phase 4: GenAI writer & summarizer

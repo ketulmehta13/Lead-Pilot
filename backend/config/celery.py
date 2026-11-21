@@ -1,4 +1,5 @@
 """Celery application for LeadPilot."""
+
 import os
 
 from celery import Celery

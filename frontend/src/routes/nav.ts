@@ -13,6 +13,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
+import type { Role } from '../types';
 
 export interface NavItem {
   path: string;
@@ -21,7 +22,11 @@ export interface NavItem {
   /** Shown on the placeholder page until the feature is built. */
   description: string;
   phase: number;
+  /** Roles that see this page; undefined = everyone signed in. */
+  roles?: Role[];
 }
+
+const SALES: Role[] = ['admin', 'sales'];
 
 /** Sidebar entries — one per main page in CLAUDE.md. */
 export const NAV_ITEMS: NavItem[] = [
@@ -45,6 +50,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Building2,
     phase: 1,
     description: 'Companies with industry, size and city.',
+    roles: SALES,
   },
   {
     path: '/leads',
@@ -52,6 +58,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Target,
     phase: 1,
     description: 'Leads with AI score badges and a "Why?" explanation.',
+    roles: SALES,
   },
   {
     path: '/pipeline',
@@ -59,6 +66,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Kanban,
     phase: 2,
     description: 'Drag-and-drop Kanban of deals by stage.',
+    roles: SALES,
   },
   {
     path: '/tasks',
@@ -66,6 +74,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: CheckSquare,
     phase: 1,
     description: 'Your tasks and reminders.',
+    roles: SALES,
   },
   {
     path: '/tickets',
@@ -73,6 +82,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: LifeBuoy,
     phase: 3,
     description: 'Support tickets with automatic sentiment and priority.',
+    roles: ['admin', 'support'],
   },
   {
     path: '/ask',
@@ -87,6 +97,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Bot,
     phase: 6,
     description: 'Give the agent a goal, then approve or reject each write action.',
+    roles: SALES,
   },
   {
     path: '/invoices',
@@ -94,6 +105,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Receipt,
     phase: 7,
     description: 'Invoices from won deals, paid through Razorpay (test mode).',
+    roles: SALES,
   },
   {
     path: '/ml-insights',
@@ -101,6 +113,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Brain,
     phase: 3,
     description: 'Model metrics, confusion matrix, segments and revenue forecast.',
+    roles: SALES,
   },
   {
     path: '/settings',
