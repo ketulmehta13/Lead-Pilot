@@ -11,6 +11,7 @@ from django.core.management.base import CommandError
 from django.db.models import F
 from django.utils import timezone
 
+from billing.models import Invoice
 from crm import services
 from crm.models import Activity, Company, Contact, Deal, Lead, Task
 from support.models import Ticket
@@ -153,6 +154,7 @@ def test_seed_demo_creates_expected_volumes(db):
     assert Deal.objects.count() == 390
     assert Deal.objects.filter(stage__in=["won", "lost"], closed_at__isnull=True).count() == 0
     assert Ticket.objects.count() == 80
+    assert Invoice.objects.exists() and Invoice.objects.filter(status="paid").exists()
     # Every converted lead has exactly one deal.
     assert not Lead.objects.filter(status="converted", deal__isnull=True).exists()
     # Every contact belongs to the same rep as its company (keeps owner scoping coherent).

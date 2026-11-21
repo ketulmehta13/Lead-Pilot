@@ -16,6 +16,7 @@ from django.db.models.functions import TruncMonth
 from django.utils import timezone
 
 from accounts.models import User
+from billing.models import Invoice
 from crm.models import Deal, Lead, Task
 
 CACHE_SECONDS = 60
@@ -137,6 +138,15 @@ def compute_summary(user: User) -> dict[str, Any]:
         ).aggregate(v=Sum("value"))["v"]
         or Decimal("0"),
         "revenue_trend": trend,
+        # Money actually received (Razorpay-paid invoices, incl. GST) this month.
+        "collected_this_month": _scoped(Invoice.objects.all(), user)
+        .filter(status=Invoice.Status.PAID, paid_at__gte=month_start)
+        .aggregate(v=Sum("total"))["v"]
+        or Decimal("0"),
+        "invoices_outstanding": _scoped(Invoice.objects.all(), user)
+        .filter(status__in=[Invoice.Status.SENT, Invoice.Status.PROCESSING, Invoice.Status.FAILED])
+        .aggregate(v=Sum("total"))["v"]
+        or Decimal("0"),
         "tasks_due_today": tasks.filter(due_date=today).count(),
         "tasks_overdue": tasks.filter(due_date__lt=today).count(),
     }

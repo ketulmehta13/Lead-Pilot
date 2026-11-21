@@ -24,6 +24,7 @@ from django.utils import timezone
 from faker import Faker
 
 from accounts.models import User
+from billing.models import Invoice, Payment, WebhookEvent
 from crm.models import Activity, Company, Contact, Deal, Lead, Task
 from crm.services import CONTACTING_TYPES, OPEN_LEAD_STATUSES
 from support.models import Ticket
@@ -127,7 +128,18 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             if flush:
-                for model in (Ticket, Task, Activity, Deal, Lead, Contact, Company):
+                for model in (
+                    Payment,
+                    WebhookEvent,
+                    Invoice,
+                    Ticket,
+                    Task,
+                    Activity,
+                    Deal,
+                    Lead,
+                    Contact,
+                    Company,
+                ):
                     model.objects.all().delete()
 
             users = self._users()
@@ -243,13 +255,14 @@ class Command(BaseCommand):
 
             history = self._closed_history(contacts, now, count=240)
             tickets = self._tickets(contacts, users, now, count=80)
+            invoices = self._invoices(now)
 
         self.stdout.write(
             self.style.SUCCESS(
                 f"Seeded {len(users)} users, {len(companies)} companies, {len(contacts)} contacts, "
                 f"{len(leads)} leads, {len(deals)} pipeline deals + {len(history)} closed deals "
                 f"of history, {len(activities)} activities, {len(tasks)} tasks, "
-                f"{len(tickets)} tickets."
+                f"{len(tickets)} tickets, {len(invoices)} invoices."
             )
         )
         self._apply_ml()
@@ -358,6 +371,37 @@ class Command(BaseCommand):
             self.stdout.write(f"Search index not built ({exc}). Run `manage.py reindex_all`.")
             return
         self.stdout.write(f"Search index: {counts}")
+
+    def _invoices(self, now) -> list[Invoice]:
+        """Invoices for won deals of the last ~4 months: mostly paid, some sent or draft.
+        Demo payments use fake test ids (pay_demo_...); no Razorpay call is made."""
+        from billing import services as billing
+
+        recent = Deal.objects.filter(
+            stage=Deal.Stage.WON, closed_at__gte=now - timedelta(days=120)
+        ).order_by("closed_at")
+        invoices = []
+        for deal in recent:
+            invoice = billing.create_invoice(deal, owner=deal.owner, due_in_days=14)
+            Invoice.objects.filter(pk=invoice.pk).update(created_at=deal.closed_at)
+            roll = random.random()
+            if roll < 0.6:
+                paid_at = min(deal.closed_at + timedelta(days=random.randint(1, 12)), now)
+                Invoice.objects.filter(pk=invoice.pk).update(
+                    status=Invoice.Status.PAID, paid_at=paid_at
+                )
+                Payment.objects.create(
+                    invoice=invoice,
+                    razorpay_payment_id=f"pay_demo_{invoice.pk:05d}",
+                    razorpay_order_id=f"order_demo_{invoice.pk:05d}",
+                    amount=invoice.total,
+                    method=random.choice(["card", "upi", "netbanking"]),
+                    status=Payment.Status.CAPTURED,
+                )
+            elif roll < 0.85:
+                Invoice.objects.filter(pk=invoice.pk).update(status=Invoice.Status.SENT)
+            invoices.append(invoice)
+        return invoices
 
     def _apply_ml(self) -> None:
         from ml import services as ml

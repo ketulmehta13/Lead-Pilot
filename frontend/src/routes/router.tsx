@@ -35,6 +35,12 @@ const AskPage = lazy(() => import('../features/ask/AskPage').then((m) => ({ defa
 const AgentPage = lazy(() =>
   import('../features/agent/AgentPage').then((m) => ({ default: m.AgentPage })),
 );
+const InvoicesPage = lazy(() =>
+  import('../features/invoices/InvoicesPage').then((m) => ({ default: m.InvoicesPage })),
+);
+const InvoiceDetailPage = lazy(() =>
+  import('../features/invoices/InvoiceDetailPage').then((m) => ({ default: m.InvoiceDetailPage })),
+);
 const TicketsPage = lazy(() =>
   import('../features/tickets/TicketsPage').then((m) => ({ default: m.TicketsPage })),
 );
@@ -53,6 +59,7 @@ const PAGES: Record<string, ReactNode> = {
   '/tickets': <TicketsPage />,
   '/ask': <AskPage />,
   '/agent': <AgentPage />,
+  '/invoices': <InvoicesPage />,
   '/ml-insights': <MlInsightsPage />,
 };
 
@@ -86,11 +93,7 @@ export const routes: RouteObject[] = [
         path: 'invoices/:id',
         element: (
           <RequireRole roles={['admin', 'sales']}>
-            <PlaceholderPage
-              title="Invoice detail"
-              description="Invoice with status, Pay Now and payment history."
-              phase={7}
-            />
+            <InvoiceDetailPage />
           </RequireRole>
         ),
       },

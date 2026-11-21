@@ -231,6 +231,55 @@ register(Tool(
 ))  # fmt: skip
 
 
+def create_invoice(user: User, deal_id: int, due_in_days: int = 7) -> dict[str, Any]:
+    from billing import services as billing
+
+    deal = _deal(user, deal_id)
+    try:
+        invoice = billing.create_invoice(deal, owner=user, due_in_days=int(due_in_days))
+    except billing.BillingError as exc:
+        raise ToolError(str(exc)) from exc
+    return {"invoice_id": invoice.id, "number": invoice.number, "total": str(invoice.total),
+            "status": invoice.status}  # fmt: skip
+
+
+def create_payment_link(user: User, invoice_id: int) -> dict[str, Any]:
+    from billing import razorpay_service as rzp
+    from billing import services as billing
+    from billing.models import Invoice
+
+    invoices = Invoice.objects.select_related("contact", "deal")
+    if not user.is_admin:
+        invoices = invoices.filter(owner=user)
+    invoice = invoices.filter(pk=invoice_id).first()
+    if invoice is None:
+        raise ToolError(f"Invoice {invoice_id} not found (or not yours).")
+    try:
+        invoice = billing.create_payment_link(invoice)
+    except (billing.BillingError, rzp.RazorpayError, rzp.RazorpayNotConfigured) as exc:
+        raise ToolError(str(exc)) from exc
+    return {"invoice_id": invoice.id, "payment_link": invoice.payment_link_url,
+            "note": "Razorpay emails this link to the customer; nothing was charged."}  # fmt: skip
+
+
+register(Tool(
+    "create_invoice",
+    "Create a draft invoice (GST 18%) for one of the user's Won deals (requires approval).",
+    _obj({
+        "deal_id": {"type": "integer"},
+        "due_in_days": {"type": "integer", "minimum": 0, "maximum": 90},
+    }, ["deal_id"]),
+    write=True, fn=create_invoice,
+))  # fmt: skip
+register(Tool(
+    "create_payment_link",
+    "Create a Razorpay payment link for an invoice; Razorpay emails it to the customer. "
+    "Does not charge anyone (requires approval).",
+    _obj({"invoice_id": {"type": "integer"}}, ["invoice_id"]),
+    write=True, fn=create_payment_link,
+))  # fmt: skip
+
+
 def schemas() -> list[dict[str, Any]]:
     return [t.schema() for t in TOOLS.values()]
 

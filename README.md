@@ -18,7 +18,8 @@ python manage.py seed_demo          # add --flush to wipe and re-seed
 ```
 
 Creates 50 companies, 300 contacts, 400 leads, 150 pipeline deals plus 240 closed deals of
-24-month history (for forecasting and segmentation), 500 activities, 120 tasks and 80 tickets.
+24-month history (for forecasting and segmentation), 500 activities, 120 tasks, 80 tickets and
+invoices for recent won deals (demo payments use fake `pay_demo_…` ids).
 If trained models exist it also scores every lead and segments customers.
 Every demo user has the password `LeadPilot@123`:
 
@@ -53,6 +54,10 @@ Every demo user has the password `LeadPilot@123`:
 | `/api/genai/conversations/`                | Your Ask LeadPilot chat history                  |
 | `POST /api/agent/runs/` · `GET runs/<id>/` | Start an agent run with `{goal}`; poll its steps |
 | `POST /api/agent/steps/<id>/approve/` · `reject/` | Decide a pending write step                |
+| `/api/billing/invoices/` (+ `create-order/`, `payment-link/`) | Invoices from Won deals; Razorpay order/link |
+| `POST /api/billing/verify/`                | Checkout signature check → invoice processing    |
+| `POST /api/billing/webhook/`               | Razorpay webhook (no auth, HMAC-verified, idempotent) |
+| `POST /api/billing/payments/<id>/refund/`  | Admin only                                       |
 
 Full, interactive docs: http://localhost:8000/api/docs/
 
@@ -178,6 +183,29 @@ Give it a goal ("Find hot leads not contacted in 7 days, draft follow-ups and cr
   everything scoped to the user's own data. Runs execute in Celery; the page polls every 2 s.
 - Without an LLM key a labelled offline planner demonstrates the approval flow.
 
+## Invoicing & Razorpay (test mode)
+
+Invoice a **Won** deal (GST 18%), then collect with **Pay Now** (Razorpay Checkout) or a
+**payment link** Razorpay emails to the customer. Money is stored as Decimal rupees and sent to
+Razorpay in paise (₹499.50 → 49950). The key secret never reaches the browser, and only test
+keys (`rzp_test_…`) are accepted; live keys are refused.
+
+Flow: create order → Checkout.js → backend verifies the payment signature (invoice
+"processing") → **webhook is the source of truth**: `payment.captured` / `payment_link.paid`
+→ signature checked (`X-Razorpay-Signature`), event stored in `WebhookEvent` (duplicates are
+skipped) → invoice paid, deal Won, "Payment received" activity, dashboard refreshed.
+`payment.failed` marks the invoice failed. Admins can refund.
+
+**Set up test mode**
+1. Razorpay Dashboard → switch to **Test Mode** → Settings → API Keys → generate a key.
+2. In `.env`: `RAZORPAY_KEY_ID=rzp_test_…`, `RAZORPAY_KEY_SECRET=…`.
+3. Webhooks need a public URL. Run [ngrok](https://ngrok.com): `ngrok http 8000`, then in
+   Razorpay → Settings → Webhooks add `https://<your-ngrok-id>.ngrok-free.app/api/billing/webhook/`
+   with events `payment.captured`, `payment.failed`, `payment_link.paid`, and a secret →
+   put the same secret in `RAZORPAY_WEBHOOK_SECRET`.
+4. Pay with a [Razorpay test card](https://razorpay.com/docs/payments/payments/test-card-details/)
+   (e.g. `4111 1111 1111 1111`, any future expiry, any CVV) and watch the invoice turn **Paid**.
+
 ## Tests and linting
 
 ```bash
@@ -208,5 +236,5 @@ frontend/  src/ api/ components/ hooks/ layouts/ pages/ routes/
 - [x] Phase 4: GenAI writer & summarizer
 - [x] Phase 5: RAG (Ask LeadPilot)
 - [x] Phase 6: Agent
-- [ ] Phase 7: Invoicing & Razorpay
+- [x] Phase 7: Invoicing & Razorpay
 - [ ] Phase 8: Testing, polish & deploy

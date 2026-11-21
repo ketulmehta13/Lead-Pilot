@@ -1,5 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, CheckSquare, IndianRupee, Kanban, LifeBuoy, Trophy } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckSquare,
+  IndianRupee,
+  Kanban,
+  LifeBuoy,
+  Trophy,
+  Wallet,
+} from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -84,7 +92,7 @@ function DashboardBody({ data }: { data: DashboardSummary }) {
   const t = data.totals;
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatTile
           icon={<Kanban className="size-4" />}
           label="Open pipeline"
@@ -97,6 +105,13 @@ function DashboardBody({ data }: { data: DashboardSummary }) {
           label="Revenue this month"
           value={formatINR(data.revenue_this_month)}
           sub="Value of deals won this month"
+        />
+        <StatTile
+          icon={<Wallet className="size-4" />}
+          label="Collected this month"
+          value={formatINR(data.collected_this_month)}
+          sub={`${formatINR(data.invoices_outstanding)} outstanding on invoices`}
+          to="/invoices"
         />
         <StatTile
           icon={<Trophy className="size-4" />}

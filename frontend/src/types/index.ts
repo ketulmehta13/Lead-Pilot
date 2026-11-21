@@ -152,6 +152,8 @@ export interface DashboardSummary {
   deals_by_stage: { stage: DealStage; label: string; count: number; value: string }[];
   win_rate: number | null;
   revenue_this_month: string;
+  collected_this_month: string;
+  invoices_outstanding: string;
   revenue_trend: { month: string; revenue: string; deals: number }[];
   tasks_due_today: number;
   tasks_overdue: number;
@@ -248,4 +250,64 @@ export interface ForecastResponse {
 export interface SegmentSummary {
   segments: { segment: string; customers: number; avg_churn_risk: number | null }[];
   silhouette: number | null;
+}
+
+export type InvoiceStatus = 'draft' | 'sent' | 'processing' | 'paid' | 'failed' | 'refunded';
+
+export interface InvoiceItem {
+  id?: number;
+  description: string;
+  quantity: string;
+  unit_price: string;
+  amount?: string;
+}
+
+export interface PaymentRecord {
+  id: number;
+  razorpay_payment_id: string;
+  amount: string;
+  method: string;
+  status: 'authorized' | 'captured' | 'failed' | 'refunded';
+  refunded_amount: string;
+  refund_id: string;
+  created_at: string;
+}
+
+export interface Invoice {
+  id: number;
+  number: string;
+  deal: number;
+  deal_title: string;
+  contact: number;
+  contact_name: string;
+  contact_email: string;
+  company_name: string | null;
+  status: InvoiceStatus;
+  currency: string;
+  items: InvoiceItem[];
+  subtotal: string;
+  tax_rate: string;
+  tax: string;
+  total: string;
+  due_date: string | null;
+  notes: string;
+  razorpay_order_id: string;
+  payment_link_url: string;
+  paid_at: string | null;
+  payments: PaymentRecord[];
+  owner: number | null;
+  owner_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CheckoutOptions {
+  key_id: string;
+  order_id: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  invoice_id: number;
+  prefill: { name: string; email: string; contact: string };
 }

@@ -13,7 +13,7 @@ how to run it, and how to test it.
 - [x] Phase 4 — GenAI writer & summarizer
 - [x] Phase 5 — RAG: Ask LeadPilot
 - [x] Phase 6 — Agent
-- [ ] Phase 7 — Invoicing & Razorpay
+- [x] Phase 7 — Invoicing & Razorpay
 - [ ] Phase 8 — Testing, polish & deploy
 
 Local note: when `DATABASE_URL` is unset the backend falls back to SQLite so it can run
@@ -68,6 +68,10 @@ Decisions made while building (keep consistent):
   write calls -> pending AgentStep + run awaiting_approval; results for one turn appended
   together; MAX_STEPS=10 (over-limit calls not run). Mock provider -> offline_planner unless
   scripted_llm is active. Phase 7 must register create_invoice / create_payment_link (write).
+- Billing: billing.razorpay_service wraps the SDK (rzp_test_ keys only, to_paise half-up,
+  webhook HMAC with compare_digest); billing.services holds the flow; mark_paid is idempotent
+  and re-reads the deal. Invoice statuses add "processing" (signature verified, awaiting
+  webhook). Dashboard: revenue_this_month = won deals; collected_this_month = paid invoices.
 - Frontend: features/<module>/ pages + modals (pages are lazy-loaded), shared UI in components/ui, schemas tested in
   lib/schemas.ts, API errors via api/errors.parseApiError, JWT refresh in api/client.ts.
 

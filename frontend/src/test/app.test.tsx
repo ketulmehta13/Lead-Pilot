@@ -26,6 +26,8 @@ vi.mock('../api/analytics', () => ({
       deals_by_stage: [{ stage: 'new', label: 'New', count: 5, value: '50000.00' }],
       win_rate: 64.5,
       revenue_this_month: '320000.00',
+      collected_this_month: '118000.00',
+      invoices_outstanding: '59000.00',
       revenue_trend: [{ month: '2026-11', revenue: '320000.00', deals: 3 }],
       tasks_due_today: 4,
       tasks_overdue: 2,
@@ -125,6 +127,15 @@ vi.mock('../api/agent', () => {
     },
   };
 });
+vi.mock('../api/billing', () => ({
+  invoicesApi: {
+    key: 'invoices',
+    list: vi.fn().mockResolvedValue({ count: 0, next: null, previous: null, results: [] }),
+    get: vi.fn(),
+    create: vi.fn(),
+    config: vi.fn().mockResolvedValue({ configured: false, key_id: '', test_mode: true }),
+  },
+}));
 vi.mock('../api/support', () => ({
   ticketsApi: {
     key: 'tickets',

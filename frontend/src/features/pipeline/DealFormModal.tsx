@@ -1,7 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Trash2 } from 'lucide-react';
+import { Receipt, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { analyticsApi } from '../../api/analytics';
@@ -47,6 +48,7 @@ export function DealFormModal({ open, deal, onClose }: Props) {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const navigate = useNavigate();
   const { register, handleSubmit, reset, setError, formState } = useForm<FormValues>({
     resolver: zodResolver(dealSchema),
     defaultValues: empty,
@@ -123,6 +125,11 @@ export function DealFormModal({ open, deal, onClose }: Props) {
                 onClick={() => setConfirmDelete(true)}
               >
                 <Trash2 className="size-4 text-rose-500" /> Delete
+              </Button>
+            )}
+            {deal?.stage === 'won' && (
+              <Button variant="secondary" onClick={() => navigate(`/invoices?deal=${deal.id}`)}>
+                <Receipt className="size-4" /> Create invoice
               </Button>
             )}
             <Button variant="secondary" onClick={onClose}>
