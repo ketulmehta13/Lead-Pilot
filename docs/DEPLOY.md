@@ -106,5 +106,9 @@ python manage.py seed_demo --flush --size small
 Remove-Item Env:DATABASE_URL, Env:EMBEDDINGS_BACKEND
 ```
 
+`--size minimal` = 2 companies, 2 contacts, 2 leads, 2 deals, 2 activities, 2 tasks, 2 tickets
+(no history, so the forecast and segments stay empty until you win deals).
 `--size small` = 12 companies, 40 contacts, 50 leads, 24 pipeline deals (+72 closed deals of
 history for the forecast), 120 activities, 20 tasks, 15 tickets. `--size full` = the spec volumes.
+`--flush` also clears agent runs and Ask LeadPilot chats. Users are kept, with their current
+passwords (only newly created demo users get `LeadPilot@123`).

@@ -185,6 +185,27 @@ def test_seed_demo_small_size_is_lighter_but_complete(db):
     assert not Lead.objects.filter(status="converted", deal__isnull=True).exists()
 
 
+def test_seed_demo_minimal_is_two_of_each_and_pages_still_work(db, client_for):
+    call_command("seed_demo", "--size", "small", stdout=io.StringIO())
+    call_command("seed_demo", "--flush", "--size", "minimal", stdout=io.StringIO())
+    assert Company.objects.count() == 2
+    assert Contact.objects.count() == 2
+    assert Lead.objects.count() == 2
+    assert Activity.objects.count() == 2
+    assert Deal.objects.count() == 2
+    assert Task.objects.count() == 2
+    assert Ticket.objects.count() == 2
+    assert not Lead.objects.filter(status="converted", deal__isnull=True).exists()
+
+    from accounts.models import User
+
+    admin = User.objects.get(username="admin")
+    client = client_for(admin)
+    # Dashboard, forecast and segments cope with almost no data.
+    for path in ("/api/analytics/summary/", "/api/ml/forecast/", "/api/ml/segments/"):
+        assert client.get(path).status_code == 200, path
+
+
 def test_seed_demo_if_empty_skips_existing_data(db):
     """Used on every free-plan start: must never fail or duplicate data."""
     call_command("seed_demo", "--if-empty", stdout=io.StringIO())

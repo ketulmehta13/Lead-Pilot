@@ -3,6 +3,7 @@
     python manage.py seed_demo            # refuses if CRM data already exists
     python manage.py seed_demo --flush    # wipes CRM data first
     python manage.py seed_demo --flush --size small   # a lighter demo (easier to present)
+    python manage.py seed_demo --flush --size minimal # 2 of each, for testing by hand
 
 Demo logins (password for all: see DEMO_PASSWORD):
     admin, priya (sales), rahul (sales), sneha (support)
@@ -116,6 +117,11 @@ SIZES: dict[str, dict[str, int]] = {
         "companies": 12, "contacts": 40, "leads": 50, "activities": 120, "deals": 24,
         "tasks": 20, "history": 72, "customers": 25, "tickets": 15,
     },
+    "minimal": {
+        # Two of each, no history: forecast and segments stay empty until deals are won.
+        "companies": 2, "contacts": 2, "leads": 2, "activities": 2, "deals": 2,
+        "tasks": 2, "history": 0, "customers": 2, "tickets": 2,
+    },
 }  # fmt: skip
 
 TASK_TITLES = [
@@ -139,7 +145,7 @@ class Command(BaseCommand):
             "--size",
             choices=sorted(SIZES),
             default="full",
-            help="How much demo data: full (spec volumes) or small (lighter demo).",
+            help="How much demo data: full (spec volumes), small, or minimal (2 of each).",
         )
 
     def handle(
@@ -159,7 +165,13 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             if flush:
+                from agent.models import AgentRun
+                from genai.models import Conversation, DocumentChunk
+
                 for model in (
+                    AgentRun,
+                    Conversation,
+                    DocumentChunk,
                     Payment,
                     WebhookEvent,
                     Invoice,
@@ -266,6 +278,15 @@ class Command(BaseCommand):
             Lead.objects.bulk_update(open_leads, ["last_contacted_at"])
 
             deals = self._deals(leads, contacts, now, count=n["deals"])
+            with_deal = {d.lead_id for d in deals if d.lead_id}
+            orphans = [
+                lead
+                for lead in leads
+                if lead.status == Lead.Status.CONVERTED and lead.pk not in with_deal
+            ]
+            for lead in orphans:
+                lead.status = Lead.Status.QUALIFIED
+            Lead.objects.bulk_update(orphans, ["status"])
 
             tasks = []
             for _ in range(n["tasks"]):
