@@ -169,6 +169,22 @@ def test_seed_demo_refuses_to_run_twice_without_flush(db):
     assert Contact.objects.count() == 300
 
 
+def test_seed_demo_small_size_is_lighter_but_complete(db):
+    call_command("seed_demo", "--size", "small", stdout=io.StringIO())
+    assert Company.objects.count() == 12
+    assert Contact.objects.count() == 40
+    assert Lead.objects.count() == 50
+    assert Activity.objects.count() == 120
+    assert Task.objects.count() == 20
+    assert Ticket.objects.count() == 15
+    assert Deal.objects.count() == 24 + 72
+    # Still enough history for the forecast (>= 15 months) and some invoices to show.
+    months = {d.closed_at.strftime("%Y-%m") for d in Deal.objects.filter(stage="won")}
+    assert len(months) >= 15
+    assert Invoice.objects.exists()
+    assert not Lead.objects.filter(status="converted", deal__isnull=True).exists()
+
+
 def test_seed_demo_if_empty_skips_existing_data(db):
     """Used on every free-plan start: must never fail or duplicate data."""
     call_command("seed_demo", "--if-empty", stdout=io.StringIO())

@@ -2,6 +2,7 @@
 
     python manage.py seed_demo            # refuses if CRM data already exists
     python manage.py seed_demo --flush    # wipes CRM data first
+    python manage.py seed_demo --flush --size small   # a lighter demo (easier to present)
 
 Demo logins (password for all: see DEMO_PASSWORD):
     admin, priya (sales), rahul (sales), sneha (support)
@@ -104,6 +105,19 @@ TICKET_TEMPLATES = [
     ),
     ("Password reset needed", "Please reset my password asap, I have a client demo in an hour."),
 ]
+# Record counts per demo size. "full" matches the project spec; "small" is easier to present.
+SIZES: dict[str, dict[str, int]] = {
+    "full": {
+        "companies": 50, "contacts": 300, "leads": 400, "activities": 500, "deals": 150,
+        "tasks": 120, "history": 240, "customers": 140, "tickets": 80,
+    },
+    "small": {
+        # history still spans 24 months so the forecast and segments have data.
+        "companies": 12, "contacts": 40, "leads": 50, "activities": 120, "deals": 24,
+        "tasks": 20, "history": 72, "customers": 25, "tickets": 15,
+    },
+}  # fmt: skip
+
 TASK_TITLES = [
     "Send follow-up email", "Schedule demo", "Prepare proposal", "Call back about pricing",
     "Share onboarding docs", "Confirm budget", "Book quarterly review", "Update contact details",
@@ -121,14 +135,23 @@ class Command(BaseCommand):
             action="store_true",
             help="Do nothing if CRM data exists (safe to run on every deploy).",
         )
+        parser.add_argument(
+            "--size",
+            choices=sorted(SIZES),
+            default="full",
+            help="How much demo data: full (spec volumes) or small (lighter demo).",
+        )
 
-    def handle(self, *args, flush: bool, seed: int, if_empty: bool, **options) -> None:
+    def handle(
+        self, *args, flush: bool, seed: int, if_empty: bool, size: str = "full", **options
+    ) -> None:
         if if_empty and Contact.objects.exists():
             self.stdout.write("CRM data already exists; skipping seed (--if-empty).")
             return
         if Contact.objects.exists() and not flush:
             raise CommandError("CRM data already exists. Re-run with --flush to replace it.")
 
+        n = SIZES[size]
         random.seed(seed)
         fake = Faker("en_IN")
         Faker.seed(seed)
@@ -162,11 +185,11 @@ class Command(BaseCommand):
                     website=f"https://{fake.unique.domain_name()}",
                     city=random.choice(CITIES),
                 )
-                for _ in range(50)
+                for _ in range(n["companies"])
             )
 
             contacts = []
-            for i in range(300):
+            for i in range(n["contacts"]):
                 company = random.choice(companies) if random.random() < 0.85 else None
                 first, last = fake.first_name(), fake.last_name()
                 contacts.append(
@@ -192,7 +215,7 @@ class Command(BaseCommand):
                     budget=Decimal(random.randrange(20_000, 2_000_000, 5_000)),
                     notes=lead_notes(*_who(contact)),
                 )
-                for contact in random.choices(contacts, k=400)
+                for contact in random.choices(contacts, k=n["leads"])
             )
             # Spread lead creation over the last 12 months (useful for charts and ML later).
             for lead in leads:
@@ -215,7 +238,7 @@ class Command(BaseCommand):
                 )
             contact_weights = [weight.get(c.id, 1.0) for c in contacts]
             activities = []
-            for contact in random.choices(contacts, weights=contact_weights, k=500):
+            for contact in random.choices(contacts, weights=contact_weights, k=n["activities"]):
                 kind = random.choices(Activity.Type.values, weights=[30, 35, 15, 20])[0]
                 activities.append(
                     Activity(
@@ -242,10 +265,10 @@ class Command(BaseCommand):
                 lead.last_contacted_at = last_contact[lead.contact_id]
             Lead.objects.bulk_update(open_leads, ["last_contacted_at"])
 
-            deals = self._deals(leads, contacts, now)
+            deals = self._deals(leads, contacts, now, count=n["deals"])
 
             tasks = []
-            for _ in range(120):
+            for _ in range(n["tasks"]):
                 contact = random.choice(contacts)
                 status = random.choices(Task.Status.values, weights=[50, 20, 30])[0]
                 tasks.append(
@@ -261,8 +284,10 @@ class Command(BaseCommand):
                 )
             Task.objects.bulk_create(tasks)
 
-            history = self._closed_history(contacts, now, count=240)
-            tickets = self._tickets(contacts, users, now, count=80)
+            history = self._closed_history(
+                contacts, now, count=n["history"], customers=n["customers"]
+            )
+            tickets = self._tickets(contacts, users, now, count=n["tickets"])
             invoices = self._invoices(now)
 
         self.stdout.write(
@@ -279,15 +304,18 @@ class Command(BaseCommand):
             "Logins: " + ", ".join(u for u, *_ in DEMO_USERS) + f"  (password: {DEMO_PASSWORD})"
         )
 
-    def _deals(self, leads: list[Lead], contacts: list[Contact], now) -> list[Deal]:
-        """150 deals: one per converted lead, the rest straight from contacts."""
+    def _deals(
+        self, leads: list[Lead], contacts: list[Contact], now, count: int = 150
+    ) -> list[Deal]:
+        """Pipeline deals: one per converted lead (up to count), the rest from contacts."""
         converted = [lead for lead in leads if lead.status == Lead.Status.CONVERTED]
         sources: list[tuple[Contact, Lead | None]] = [(lead.contact, lead) for lead in converted]
-        sources += [(c, None) for c in random.sample(contacts, k=max(0, 150 - len(sources)))]
-        stages = random.choices(Deal.Stage.values, weights=[15, 15, 15, 12, 28, 15], k=150)
+        extra = min(len(contacts), max(0, count - len(sources)))
+        sources += [(c, None) for c in random.sample(contacts, k=extra)]
+        stages = random.choices(Deal.Stage.values, weights=[15, 15, 15, 12, 28, 15], k=count)
 
         deals, positions = [], {stage: 0 for stage in Deal.Stage.values}
-        for (contact, lead), stage in zip(sources[:150], stages, strict=False):
+        for (contact, lead), stage in zip(sources[:count], stages, strict=False):
             name = contact.company.name if contact.company else contact.full_name
             value = (
                 lead.budget
@@ -313,15 +341,17 @@ class Command(BaseCommand):
             deals.append(deal)
         return Deal.objects.bulk_create(deals)
 
-    def _closed_history(self, contacts: list[Contact], now, count: int) -> list[Deal]:
+    def _closed_history(
+        self, contacts: list[Contact], now, count: int, customers: int = 140
+    ) -> list[Deal]:
         """Won/lost deals from the past 24 months: growing over time, busier in Q4."""
         positions = {
             stage: Deal.objects.filter(stage=stage).count() for stage in Deal.CLOSED_STAGES
         }
-        customers = random.sample(contacts, k=min(len(contacts), 140))  # repeat buyers exist
+        buyers = random.sample(contacts, k=min(len(contacts), customers))  # repeat buyers
         deals = []
         for _ in range(count):
-            contact = random.choice(customers)
+            contact = random.choice(buyers)
             stage = Deal.Stage.WON if random.random() < 0.65 else Deal.Stage.LOST
             name = contact.company.name if contact.company else contact.full_name
             deals.append(
