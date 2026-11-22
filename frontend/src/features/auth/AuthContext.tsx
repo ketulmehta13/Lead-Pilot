@@ -12,6 +12,8 @@ interface AuthState {
   loading: boolean;
   login: (username: string, password: string) => Promise<User>;
   logout: () => void;
+  /** Replace the signed-in user after a profile change. */
+  updateUser: (user: User) => void;
   hasRole: (...roles: Role[]) => boolean;
 }
 
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
+      updateUser: setUser,
       hasRole: (...roles) => Boolean(user && roles.includes(user.role)),
     }),
     [user, loading, login, logout],

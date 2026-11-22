@@ -8,6 +8,9 @@ export interface User {
   last_name: string;
   full_name: string;
   role: Role;
+  is_active?: boolean;
+  last_login?: string | null;
+  date_joined?: string;
 }
 
 export interface Paginated<T> {

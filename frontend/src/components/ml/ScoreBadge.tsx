@@ -1,6 +1,17 @@
 import { ArrowDownRight, ArrowUpRight, HelpCircle } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ScoreFactor, ScoreLabel } from '../../types';
+
+const PANEL_WIDTH = 288; // w-72
+const GAP = 6;
+const MARGIN = 8; // keep this far from the viewport edges
+
+interface Position {
+  top: number;
+  left: number;
+  placement: 'below' | 'above';
+}
 
 const TONE: Record<ScoreLabel, string> = {
   hot: 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-rose-500/30',
@@ -18,22 +29,50 @@ interface Props {
 /** AI lead score (0-100) with a "Why?" popover listing the top SHAP factors. */
 export function ScoreBadge({ score, label, factors }: Props) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<Position | null>(null);
   const panelId = useId();
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // The panel is portalled to <body> with fixed positioning, so tables and cards with
+  // overflow:hidden can't clip it. It opens below the button, or above when there's no room.
+  const place = useCallback(() => {
+    const anchor = buttonRef.current?.getBoundingClientRect();
+    if (!anchor) return;
+    const height = panelRef.current?.offsetHeight ?? 220;
+    const fitsBelow = anchor.bottom + GAP + height <= window.innerHeight - MARGIN;
+    const fitsAbove = anchor.top - GAP - height >= MARGIN;
+    const placement = fitsBelow || !fitsAbove ? 'below' : 'above';
+    const top = placement === 'below' ? anchor.bottom + GAP : anchor.top - GAP - height;
+    const maxLeft = window.innerWidth - PANEL_WIDTH - MARGIN;
+    const left = Math.max(MARGIN, Math.min(anchor.right - PANEL_WIDTH, maxLeft));
+    setPos({ top, left, placement });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (open) place();
+  }, [open, place]);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (ref.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
     document.addEventListener('mousedown', onDown);
     document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true); // capture: scrolling inside tables too
     return () => {
       document.removeEventListener('mousedown', onDown);
       document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
     };
-  }, [open]);
+  }, [open, place]);
 
   if (score === null || label === null) {
     return <span className="text-xs text-slate-400">Not scored</span>;
@@ -53,6 +92,7 @@ export function ScoreBadge({ score, label, factors }: Props) {
       </span>
       {factors && factors.length > 0 && (
         <button
+          ref={buttonRef}
           type="button"
           aria-expanded={open}
           aria-controls={panelId}
@@ -63,47 +103,59 @@ export function ScoreBadge({ score, label, factors }: Props) {
           Why?
         </button>
       )}
-      {open && factors && (
-        <div
-          id={panelId}
-          role="dialog"
-          aria-label={`Why this lead scores ${score}`}
-          className="absolute top-full right-0 z-30 mt-1 w-72 rounded-lg border border-slate-200 bg-white p-3 text-left text-xs shadow-lg dark:border-slate-700 dark:bg-slate-800"
-        >
-          <p className="mb-2 font-medium text-slate-900 dark:text-slate-100">
-            Top factors behind this score
-          </p>
-          <ul className="space-y-2">
-            {factors.map((f) => (
-              <li key={f.feature} className="flex items-start gap-2">
-                {f.direction === 'up' ? (
-                  <ArrowUpRight
-                    className="mt-0.5 size-3.5 shrink-0 text-emerald-600"
-                    aria-label="raises score"
-                  />
-                ) : (
-                  <ArrowDownRight
-                    className="mt-0.5 size-3.5 shrink-0 text-rose-600"
-                    aria-label="lowers score"
-                  />
-                )}
-                <span className="text-slate-700 dark:text-slate-200">
-                  <span className="font-medium">{f.label}</span>: {f.value}
-                  <span className="block text-slate-500">
-                    {f.direction === 'up' ? 'Raises' : 'Lowers'} the score (impact{' '}
-                    {f.impact > 0 ? '+' : ''}
-                    {f.impact.toFixed(2)})
+      {open &&
+        factors &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={panelId}
+            role="dialog"
+            aria-label={`Why this lead scores ${score}`}
+            data-placement={pos?.placement}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: pos?.top ?? -9999,
+              left: pos?.left ?? -9999,
+              width: PANEL_WIDTH,
+            }}
+            className="z-50 rounded-lg border border-slate-200 bg-white p-3 text-left text-xs shadow-lg dark:border-slate-700 dark:bg-slate-800"
+          >
+            <p className="mb-2 font-medium text-slate-900 dark:text-slate-100">
+              Top factors behind this score
+            </p>
+            <ul className="space-y-2">
+              {factors.map((f) => (
+                <li key={f.feature} className="flex items-start gap-2">
+                  {f.direction === 'up' ? (
+                    <ArrowUpRight
+                      className="mt-0.5 size-3.5 shrink-0 text-emerald-600"
+                      aria-label="raises score"
+                    />
+                  ) : (
+                    <ArrowDownRight
+                      className="mt-0.5 size-3.5 shrink-0 text-rose-600"
+                      aria-label="lowers score"
+                    />
+                  )}
+                  <span className="text-slate-700 dark:text-slate-200">
+                    <span className="font-medium">{f.label}</span>: {f.value}
+                    <span className="block text-slate-500">
+                      {f.direction === 'up' ? 'Raises' : 'Lowers'} the score (impact{' '}
+                      {f.impact > 0 ? '+' : ''}
+                      {f.impact.toFixed(2)})
+                    </span>
                   </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 border-t border-slate-100 pt-2 text-slate-500 dark:border-slate-700">
-            XGBoost model · SHAP values. Updates automatically when the lead or its activity
-            changes.
-          </p>
-        </div>
-      )}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 border-t border-slate-100 pt-2 text-slate-500 dark:border-slate-700">
+              XGBoost model · SHAP values. Updates automatically when the lead or its activity
+              changes.
+            </p>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

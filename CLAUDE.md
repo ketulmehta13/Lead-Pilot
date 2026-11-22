@@ -75,6 +75,11 @@ Decisions made while building (keep consistent):
 - Hosting: free plans (render.yaml): no worker -> CELERY_TASK_ALWAYS_EAGER=true, `seed_demo --if-empty`
   on start, hash embeddings, API timeout 60 s for cold starts. Groq default model openai/gpt-oss-120b.
   Dev settings load the root .env (config/settings/dotenv.py).
+- Settings: accounts/services.py (update_profile, change_password, admin_update_user,
+  admin_set_password). Users are deactivated, never deleted; admins can't change their own
+  role/deactivate themselves; the last active admin can't be demoted. /api/auth/users/ lists
+  active users unless ?include_inactive=true. JWT login updates last_login. Theme is a shared
+  store (hooks/useTheme.ts). Popovers inside tables portal to <body> (see ScoreBadge).
 - Quality: common/tests/test_security.py sweeps every OpenAPI operation for auth (PUBLIC
   allowlist) + role matrix; login throttled (LOGIN_RATE_LIMIT). E2E: frontend/e2e (Playwright,
   config.settings.e2e: SQLite e2e.sqlite3, mock LLM, hash embeddings, webhook secret

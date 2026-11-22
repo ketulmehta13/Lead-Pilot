@@ -2,7 +2,14 @@ import { AxiosError } from 'axios';
 import { describe, expect, it } from 'vitest';
 import { parseApiError } from '../api/errors';
 import { formatINR, timeAgo } from './format';
-import { contactSchema, leadSchema, parseTags } from './schemas';
+import {
+  changePasswordSchema,
+  contactSchema,
+  leadSchema,
+  newTeamMemberSchema,
+  parseTags,
+  teamMemberSchema,
+} from './schemas';
 
 function axiosError(status: number, data: unknown) {
   return new AxiosError('fail', String(status), undefined, undefined, {
@@ -61,6 +68,44 @@ describe('schemas', () => {
 
   it('parses tags: trims, lowercases, dedupes', () => {
     expect(parseTags(' VIP, trial;vip ,, ')).toEqual(['vip', 'trial']);
+  });
+
+  it('checks a password change: length, digits-only, confirmation, reuse', () => {
+    const ok = {
+      current_password: 'old-pass',
+      new_password: 'Harbour-Lamp-7',
+      confirm: 'Harbour-Lamp-7',
+    };
+    expect(changePasswordSchema.safeParse(ok).success).toBe(true);
+    expect(
+      changePasswordSchema.safeParse({ ...ok, new_password: 'short', confirm: 'short' }).success,
+    ).toBe(false);
+    expect(
+      changePasswordSchema.safeParse({ ...ok, new_password: '12345678', confirm: '12345678' })
+        .success,
+    ).toBe(false);
+    expect(changePasswordSchema.safeParse({ ...ok, confirm: 'different' }).success).toBe(false);
+    expect(
+      changePasswordSchema.safeParse({ ...ok, current_password: ok.new_password }).success,
+    ).toBe(false);
+  });
+
+  it('needs a password for new team members but not when editing', () => {
+    const member = {
+      username: 'asha.k',
+      first_name: 'Asha',
+      last_name: '',
+      email: 'asha@x.io',
+      role: 'sales',
+      password: '',
+    };
+    expect(teamMemberSchema.safeParse(member).success).toBe(true);
+    expect(newTeamMemberSchema.safeParse(member).success).toBe(false);
+    expect(newTeamMemberSchema.safeParse({ ...member, password: 'Harbour-Lamp-7' }).success).toBe(
+      true,
+    );
+    expect(teamMemberSchema.safeParse({ ...member, username: 'a b' }).success).toBe(false);
+    expect(teamMemberSchema.safeParse({ ...member, role: 'owner' }).success).toBe(false);
   });
 });
 

@@ -1,11 +1,21 @@
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { authApi } from '../api/auth';
+import { accountApi, authApi, usersApi } from '../api/auth';
 import { NAV_ITEMS } from '../routes/nav';
 import { makeUser, renderApp } from './utils';
 
-vi.mock('../api/auth', () => ({ authApi: { me: vi.fn(), login: vi.fn() } }));
+vi.mock('../api/auth', () => ({
+  authApi: { me: vi.fn(), login: vi.fn() },
+  accountApi: { updateMe: vi.fn(), changePassword: vi.fn() },
+  usersApi: {
+    key: 'users',
+    list: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    setPassword: vi.fn(),
+  },
+}));
 vi.mock('../api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/client')>()),
   getHealth: vi.fn().mockResolvedValue({ status: 'ok', database: 'ok' }),
@@ -169,6 +179,9 @@ vi.mock('../api/crm', () => {
 
 const me = vi.mocked(authApi.me);
 const login = vi.mocked(authApi.login);
+const updateMe = vi.mocked(accountApi.updateMe);
+const listUsers = vi.mocked(usersApi.list);
+const updateUser = vi.mocked(usersApi.update);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -344,5 +357,57 @@ describe('Agent', () => {
     expect(screen.getByText(/this changes your crm/i)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^approve$/i }));
     expect(await screen.findByText('Drafted 1 follow-up and created 1 task.')).toBeInTheDocument();
+  });
+});
+
+describe('settings', () => {
+  it('a sales rep edits their profile but has no team management', async () => {
+    const rep = makeUser('sales');
+    me.mockResolvedValue(rep);
+    updateMe.mockResolvedValue({ ...rep, first_name: 'Priya', full_name: 'Priya sales' });
+    const user = userEvent.setup();
+    renderApp('/settings');
+    expect(await screen.findByRole('heading', { name: 'Profile' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Password' })).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Team' })).not.toBeInTheDocument();
+
+    const first = screen.getByLabelText('First name');
+    await user.clear(first);
+    await user.type(first, 'Priya');
+    await user.click(screen.getByRole('button', { name: 'Save profile' }));
+    expect(updateMe).toHaveBeenCalledWith(expect.objectContaining({ first_name: 'Priya' }));
+    expect(await screen.findByText('Profile saved')).toBeInTheDocument();
+  });
+
+  it('an admin manages the team and sees the system status', async () => {
+    const admin = makeUser('admin');
+    const rep = { ...makeUser('sales'), id: 2, username: 'rahul', full_name: 'Rahul Verma' };
+    me.mockResolvedValue(admin);
+    listUsers.mockResolvedValue({
+      count: 2,
+      next: null,
+      previous: null,
+      results: [
+        { ...admin, is_active: true },
+        { ...rep, is_active: true },
+      ],
+    });
+    updateUser.mockResolvedValue({ ...rep, is_active: false });
+    const user = userEvent.setup();
+    renderApp('/settings');
+
+    const team = await screen.findByRole('region', { name: 'Team' });
+    expect(await within(team).findByText('Rahul Verma')).toBeInTheDocument();
+    // Admins can't deactivate themselves: only one Deactivate button (for Rahul).
+    const buttons = within(team).getAllByRole('button', { name: 'Deactivate' });
+    expect(buttons).toHaveLength(1);
+    await user.click(buttons[0]);
+    expect(updateUser).toHaveBeenCalledWith(2, { is_active: false });
+    expect(await screen.findByText('Rahul Verma deactivated')).toBeInTheDocument();
+
+    const system = screen.getByRole('region', { name: 'System status' });
+    expect(await within(system).findByText(/Connected: groq/)).toBeInTheDocument();
+    expect(within(system).getByText(/Pay Now and payment links are off/)).toBeInTheDocument();
   });
 });

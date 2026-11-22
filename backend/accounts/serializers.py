@@ -10,7 +10,18 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "first_name", "last_name", "full_name", "role"]
+        fields = [
+            "id",
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "full_name",
+            "role",
+            "is_active",
+            "last_login",
+            "date_joined",
+        ]
         read_only_fields = fields
 
     def get_full_name(self, obj: User) -> str:
@@ -55,3 +66,30 @@ class LoginSerializer(TokenObtainPairSerializer):
         data = super().validate(attrs)
         data["user"] = UserSerializer(self.user).data
         return data
+
+
+class ProfileSerializer(serializers.Serializer):
+    """PATCH /api/auth/me/: your own name and email."""
+
+    first_name = serializers.CharField(max_length=150, allow_blank=True, required=False)
+    last_name = serializers.CharField(max_length=150, allow_blank=True, required=False)
+    email = serializers.EmailField(required=False)
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(style={"input_type": "password"})
+    new_password = serializers.CharField(style={"input_type": "password"})
+
+
+class AdminUserUpdateSerializer(serializers.Serializer):
+    """PATCH /api/auth/users/<id>/ (admins)."""
+
+    first_name = serializers.CharField(max_length=150, allow_blank=True, required=False)
+    last_name = serializers.CharField(max_length=150, allow_blank=True, required=False)
+    email = serializers.EmailField(required=False)
+    role = serializers.ChoiceField(choices=User.Role.choices, required=False)
+    is_active = serializers.BooleanField(required=False)
+
+
+class SetPasswordSerializer(serializers.Serializer):
+    password = serializers.CharField(style={"input_type": "password"})

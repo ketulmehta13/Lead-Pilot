@@ -99,3 +99,19 @@ export const TICKET_PRIORITY_OPTIONS: { value: TicketPriority; label: string }[]
   { value: 'medium', label: 'Medium' },
   { value: 'low', label: 'Low' },
 ];
+
+export const ROLE_OPTIONS: Option[] = [
+  { value: 'admin', label: 'Admin' },
+  { value: 'sales', label: 'Sales Rep' },
+  { value: 'support', label: 'Support' },
+];
+
+export const ROLE_TONE: Record<string, Tone> = {
+  admin: 'indigo',
+  sales: 'emerald',
+  support: 'sky',
+};
+
+export function roleLabel(role: string): string {
+  return ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role;
+}

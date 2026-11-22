@@ -47,6 +47,9 @@ const TicketsPage = lazy(() =>
 const MlInsightsPage = lazy(() =>
   import('../features/ml/MlInsightsPage').then((m) => ({ default: m.MlInsightsPage })),
 );
+const SettingsPage = lazy(() =>
+  import('../features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+);
 
 /** Pages that are built; everything else in NAV_ITEMS shows a placeholder. */
 const PAGES: Record<string, ReactNode> = {
@@ -61,6 +64,7 @@ const PAGES: Record<string, ReactNode> = {
   '/agent': <AgentPage />,
   '/invoices': <InvoicesPage />,
   '/ml-insights': <MlInsightsPage />,
+  '/settings': <SettingsPage />,
 };
 
 export const routes: RouteObject[] = [

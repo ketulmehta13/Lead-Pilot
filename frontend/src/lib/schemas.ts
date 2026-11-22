@@ -75,3 +75,56 @@ export const ticketSchema = z.object({
   contact: z.string().min(1, 'Choose the customer'),
   priority: z.string(),
 });
+
+// --- Settings ---------------------------------------------------------------------------
+
+export const profileSchema = z.object({
+  first_name: z.string().trim().max(150),
+  last_name: z.string().trim().max(150),
+  email: z.email('Enter a valid email'),
+});
+
+const newPassword = z
+  .string()
+  .min(8, 'Use at least 8 characters')
+  .max(128)
+  .refine((p) => !/^\d+$/.test(p), 'Use letters too, not only numbers');
+
+export const changePasswordSchema = z
+  .object({
+    current_password: z.string().min(1, 'Enter your current password'),
+    new_password: newPassword,
+    confirm: z.string(),
+  })
+  .refine((v) => v.new_password === v.confirm, {
+    path: ['confirm'],
+    message: 'Passwords do not match',
+  })
+  .refine((v) => v.new_password !== v.current_password, {
+    path: ['new_password'],
+    message: 'Choose a different password',
+  });
+
+export const teamMemberSchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(3, 'At least 3 characters')
+    .max(150)
+    .regex(/^[\w.@+-]+$/, 'Letters, digits and . @ + - _ only'),
+  first_name: z.string().trim().max(150),
+  last_name: z.string().trim().max(150),
+  email: z.email('Enter a valid email'),
+  role: z.enum(['admin', 'sales', 'support']),
+  password: z.string(),
+});
+
+/** New users need a password; editing an existing user doesn't touch it. */
+export const newTeamMemberSchema = teamMemberSchema.extend({ password: newPassword });
+
+export const resetPasswordSchema = z
+  .object({ password: newPassword, confirm: z.string() })
+  .refine((v) => v.password === v.confirm, {
+    path: ['confirm'],
+    message: 'Passwords do not match',
+  });
