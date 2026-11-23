@@ -3,10 +3,14 @@ import { isAxiosError } from 'axios';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
+import { wakeServer } from './api/wake';
 import { ToastProvider } from './components/Toast';
 import { AuthProvider } from './features/auth/AuthContext';
 import './index.css';
 import { router } from './routes/router';
+
+// Start waking a sleeping (free-tier) API immediately, while the page and login form load.
+void wakeServer();
 
 const queryClient = new QueryClient({
   defaultOptions: {

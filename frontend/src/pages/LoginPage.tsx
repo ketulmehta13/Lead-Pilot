@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import { parseApiError } from '../api/errors';
+import { isWakingError, useWakeState, wakeServer } from '../api/wake';
 import { ThemeToggle } from '../components/ThemeToggle';
 import { Button } from '../components/ui/Button';
 import { TextField } from '../components/ui/Field';
@@ -20,6 +22,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
+  const wake = useWakeState();
   const { register, handleSubmit, formState } = useForm<FormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { username: '', password: '' },
@@ -31,11 +34,23 @@ export function LoginPage() {
   const onSubmit = handleSubmit(async ({ username, password }) => {
     setError(null);
     try {
-      await login(username, password);
+      try {
+        await login(username, password);
+      } catch (err) {
+        // The server was asleep: wait for it to start, then try once more.
+        if (!isWakingError(err) || !(await wakeServer())) throw err;
+        await login(username, password);
+      }
       navigate(from, { replace: true });
     } catch (err) {
       const parsed = parseApiError(err);
-      setError(parsed.status === 401 ? 'Wrong username or password.' : parsed.message);
+      setError(
+        parsed.status === 401
+          ? 'Wrong username or password.'
+          : isWakingError(err)
+            ? 'The server is taking longer than usual to start. Please try again in a minute.'
+            : parsed.message,
+      );
     }
   });
 
@@ -53,6 +68,16 @@ export function LoginPage() {
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Welcome back. Use the account your admin gave you.
         </p>
+        {wake === 'waking' && (
+          <p
+            role="status"
+            className="mt-4 flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300"
+          >
+            <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+            Starting the server… this can take up to a minute after a quiet period. You can sign in
+            now; we’ll wait for it.
+          </p>
+        )}
         <form onSubmit={onSubmit} noValidate className="mt-6 space-y-4">
           <TextField
             label="Username"
