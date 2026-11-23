@@ -10,7 +10,8 @@ interface AuthState {
   user: User | null;
   /** True while we check a saved token on first load. */
   loading: boolean;
-  login: (username: string, password: string) => Promise<User>;
+  /** `remember`: stay signed in after the browser closes (default: this session only). */
+  login: (username: string, password: string, remember?: boolean) => Promise<User>;
   logout: () => void;
   /** Replace the signed-in user after a profile change. */
   updateUser: (user: User) => void;
@@ -51,9 +52,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [logout]);
 
   const login = useCallback(
-    async (username: string, password: string) => {
+    async (username: string, password: string, remember = false) => {
       const data = await authApi.login(username, password);
-      tokens.set(data.access, data.refresh);
+      tokens.set(data.access, data.refresh, remember);
       queryClient.clear();
       setUser(data.user);
       return data.user;

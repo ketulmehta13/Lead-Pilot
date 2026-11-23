@@ -186,6 +186,7 @@ const updateUser = vi.mocked(usersApi.update);
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 describe('auth', () => {
@@ -229,7 +230,24 @@ describe('auth', () => {
     expect(
       await screen.findByRole('heading', { name: 'Dashboard' }, { timeout: 15_000 }),
     ).toBeInTheDocument();
+    // Not ticked "Keep me signed in": this browser session only.
+    expect(sessionStorage.getItem('leadpilot-access')).toBe('a');
+    expect(localStorage.getItem('leadpilot-access')).toBeNull();
+  });
+
+  it('"Keep me signed in" keeps the session after the browser closes', async () => {
+    login.mockResolvedValue({ access: 'a', refresh: 'r', user: makeUser('sales') });
+    const user = userEvent.setup();
+    renderApp('/login', { signedIn: false });
+    await user.type(screen.getByLabelText('Username'), 'priya');
+    await user.type(screen.getByLabelText('Password'), 'LeadPilot@123');
+    await user.click(screen.getByRole('checkbox', { name: /keep me signed in/i }));
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Dashboard' }, { timeout: 15_000 }),
+    ).toBeInTheDocument();
     expect(localStorage.getItem('leadpilot-access')).toBe('a');
+    expect(sessionStorage.getItem('leadpilot-access')).toBeNull();
   });
 
   it('signs out from the top bar', async () => {
@@ -239,6 +257,7 @@ describe('auth', () => {
     await user.click(await screen.findByRole('button', { name: 'Sign out' }));
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
     expect(localStorage.getItem('leadpilot-access')).toBeNull();
+    expect(sessionStorage.getItem('leadpilot-access')).toBeNull();
   });
 });
 

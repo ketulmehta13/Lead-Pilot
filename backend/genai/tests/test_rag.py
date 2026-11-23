@@ -166,6 +166,34 @@ def test_what_did_we_discuss_with_company_last_month(client_for, rep, crm, monke
     assert "40 seats" in body["citations"][0]["snippet"]
 
 
+def test_named_company_is_answered_even_when_similarity_is_weak(client_for, rep, crm, monkeypatch):
+    """Hash embeddings (free hosting) can score the right notes below the threshold. A named
+    company pins its records, so they still reach the model instead of "I don't know"."""
+    monkeypatch.setenv("RAG_MIN_SIMILARITY", "0.99")  # nothing passes on similarity alone
+    reply = json.dumps({"answer": "You discussed pricing for 40 seats.", "sources": [1]})
+    with scripted_llm([reply]) as calls:
+        body = (
+            client_for(rep)
+            .post(
+                "/api/genai/ask/",
+                {"question": "What did we discuss with Nimbus Logistics last month?"},
+                format="json",
+            )
+            .json()
+        )
+    assert len(calls) == 1
+    assert "40 seats" in calls[0]["messages"][0]["content"]
+    assert [c["id"] for c in body["citations"]] == [crm["nimbus_last_month"].id]
+
+    # Without a named company or contact the strict threshold still applies.
+    with scripted_llm([]) as calls:
+        body = client_for(rep).post(
+            "/api/genai/ask/", {"question": "What did we discuss about pricing last month?"},
+            format="json",
+        ).json()  # fmt: skip
+    assert body["answer"] == rag.DONT_KNOW and calls == []
+
+
 def test_unknown_topic_says_i_dont_know_without_calling_the_llm(client_for, rep, crm):
     with scripted_llm([]) as calls:  # any LLM call would fail the test
         response = client_for(rep).post(

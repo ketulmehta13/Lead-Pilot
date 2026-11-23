@@ -278,6 +278,9 @@ def date_range(question: str, now: datetime | None = None) -> tuple[datetime, da
 class Hit:
     chunk: DocumentChunk
     similarity: float
+    # True when the question named this record's company/contact: it is relevant by
+    # construction, whatever its embedding similarity (weak with hash embeddings).
+    pinned: bool = False
 
 
 def search(question: str, user: User, k: int = TOP_K) -> tuple[list[Hit], bool]:
@@ -292,6 +295,7 @@ def search(question: str, user: User, k: int = TOP_K) -> tuple[list[Hit], bool]:
     if span := date_range(question):
         candidates = candidates.filter(occurred_at__gte=span[0], occurred_at__lt=span[1])
     filtered = bool(company_ids or contact_ids or span)
+    pinned = bool(company_ids or contact_ids)
     query = embeddings.embed_query(question)
 
     if connection.vendor == "postgresql":
@@ -300,7 +304,7 @@ def search(question: str, user: User, k: int = TOP_K) -> tuple[list[Hit], bool]:
         rows = candidates.annotate(distance=CosineDistance("embedding", query.tolist())).order_by(
             "distance"
         )[:k]
-        hits = [Hit(c, 1.0 - float(c.distance)) for c in rows]
+        hits = [Hit(c, 1.0 - float(c.distance), pinned) for c in rows]
     else:  # SQLite (local dev): brute-force cosine in NumPy
         rows = list(candidates)
         if not rows:
@@ -308,7 +312,7 @@ def search(question: str, user: User, k: int = TOP_K) -> tuple[list[Hit], bool]:
         matrix = np.vstack([np.asarray(c.embedding, dtype=np.float32) for c in rows])
         scores = matrix @ query
         order = np.argsort(-scores)[:k]
-        hits = [Hit(rows[i], float(scores[i])) for i in order]
+        hits = [Hit(rows[i], float(scores[i]), pinned) for i in order]
     return hits, filtered
 
 
@@ -365,9 +369,10 @@ def grounded_answer(
     from .services import structured_chat
 
     hits, filtered = search(question, user)
-    # Name/date filters already pin the right records, so accept weaker semantic matches.
+    # A named company/contact pins the right records: keep them. A date filter alone only
+    # narrows the search, so it relaxes the similarity threshold instead of removing it.
     threshold = min_similarity() * (0.5 if filtered else 1.0)
-    hits = [h for h in hits if h.similarity >= threshold]
+    hits = [h for h in hits if h.pinned or h.similarity >= threshold]
 
     if not hits:
         text, citations = DONT_KNOW, []

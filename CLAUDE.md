@@ -61,7 +61,8 @@ Decisions made while building (keep consistent):
 - RAG: genai.DocumentChunk (pgvector VectorField; extension + HNSW index created by
   Postgres-only migration ops in common/migration_ops.py; SQLite stores text and rag.search
   falls back to NumPy). Scope: admin all, sales owner=user, support tickets only. Entity +
-  date filters from the question, threshold halves when filtered. EMBEDDINGS_BACKEND=hash in
+  date filters from the question; hits for a named company/contact are `pinned` (kept
+  regardless of similarity), a date filter alone halves the threshold. EMBEDDINGS_BACKEND=hash in
   tests/CI (no model download). Index kept fresh by genai/signals.py.
 - Agent: agent/tools.py registry (Tool name/description/JSON schema/write flag/fn, calls
   services, scoped to run.user, errors returned as {"error"}); agent/agent.py advance()/decide();
@@ -87,6 +88,9 @@ Decisions made while building (keep consistent):
   Deploy: render.yaml + frontend/vercel.json + docs/DEPLOY.md.
 - Frontend: features/<module>/ pages + modals (pages are lazy-loaded), shared UI in components/ui, schemas tested in
   lib/schemas.ts, API errors via api/errors.parseApiError, JWT refresh in api/client.ts.
+  Tokens: sessionStorage by default (closing the browser signs out); "Keep me signed in" uses
+  localStorage (api/tokens.ts). api/wake.ts wakes a sleeping free-tier API on page load and the
+  login retries once it is up.
 
 ## Goal
 A portfolio-grade CRM that demonstrates: full-stack development (React + Django),
