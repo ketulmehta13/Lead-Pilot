@@ -11,6 +11,7 @@ Answer:   grounded prompt with numbered sources -> JSON {answer, sources} -> cit
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -18,7 +19,7 @@ from datetime import datetime, time, timedelta
 from typing import Any
 
 import numpy as np
-from django.db import connection, transaction
+from django.db import DatabaseError, connection, transaction
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 from pydantic import BaseModel, Field
@@ -30,6 +31,8 @@ from support.models import Ticket
 from . import embeddings
 from .models import Conversation, ConversationMessage, DocumentChunk
 from .prompts import fence, render
+
+logger = logging.getLogger(__name__)
 
 TOP_K = 5
 HISTORY_TURNS = 6
@@ -283,6 +286,22 @@ class Hit:
     pinned: bool = False
 
 
+def _allow_filtered_hnsw() -> None:
+    """Let the HNSW index keep scanning until enough rows pass our filters.
+
+    HNSW is approximate: by default it returns ~40 nearest rows and *then* applies the WHERE
+    (owner, ticket-only, company, dates). With a narrow filter, or many dead rows still in
+    the index, that can leave zero results. pgvector >= 0.8 "iterative scans" fix this.
+    Must run inside a transaction (SET LOCAL). Older pgvector: skipped (exact-search risk
+    remains, results still correct but possibly fewer).
+    """
+    try:
+        with transaction.atomic(), connection.cursor() as cursor:
+            cursor.execute("SET LOCAL hnsw.iterative_scan = relaxed_order")
+    except DatabaseError:
+        logger.warning("pgvector iterative scans unavailable; filtered RAG search may miss rows")
+
+
 def search(question: str, user: User, k: int = TOP_K) -> tuple[list[Hit], bool]:
     """Top-k chunks for the question. Returns (hits, filtered) where `filtered` says whether a
     company/contact or date filter from the question narrowed the search."""
@@ -301,10 +320,18 @@ def search(question: str, user: User, k: int = TOP_K) -> tuple[list[Hit], bool]:
     if connection.vendor == "postgresql":
         from pgvector.django import CosineDistance
 
-        rows = candidates.annotate(distance=CosineDistance("embedding", query.tolist())).order_by(
+        ranked = candidates.annotate(distance=CosineDistance("embedding", query.tolist())).order_by(
             "distance"
         )[:k]
-        hits = [Hit(c, 1.0 - float(c.distance), pinned) for c in rows]
+        with transaction.atomic():
+            _allow_filtered_hnsw()
+            rows = list(ranked)
+        # relaxed_order may return near-but-not-exact order: sort by real distance.
+        hits = sorted(
+            (Hit(c, 1.0 - float(c.distance), pinned) for c in rows),
+            key=lambda h: h.similarity,
+            reverse=True,
+        )
     else:  # SQLite (local dev): brute-force cosine in NumPy
         rows = list(candidates)
         if not rows:
